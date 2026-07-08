@@ -262,18 +262,6 @@ elif st.session_state.app_state == 'graph':
                 ref_x_col = df_ref.columns[0]
                 ref_options = df_ref.columns[1:].tolist()
 
-            # --- NATIVE STREAMLIT SERIES SELECTOR ---
-            if normalized_cols:
-                st.markdown("### Data Series to Graph")
-                selected_data_series = st.multiselect(
-                    "Select Series:", 
-                    options=normalized_cols, 
-                    default=normalized_cols,
-                    label_visibility="collapsed"
-                )
-            else:
-                selected_data_series = []
-
             selected_refs = []
             if ref_options:
                 st.markdown("### Reference Lighting Overlays")
@@ -322,8 +310,8 @@ elif st.session_state.app_state == 'graph':
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- ONLY GRAPH THE SERIES CHOSEN IN THE MULTISELECT ---
-                for col_name in selected_data_series:
+                # --- DEFAULT GRAPH ALL NORMALIZED COLUMNS ---
+                for col_name in normalized_cols:
                     fig.add_trace(go.Scatter(
                         x=df_color['WL (nm)'], y=df_color[col_name], 
                         mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
@@ -342,11 +330,11 @@ elif st.session_state.app_state == 'graph':
                     xaxis_title="Wavelength (nm)",
                     hovermode="x unified",
                     template="plotly_white",
-                    
-                    # THIS IS THE NEW LEGEND POSITION (Moved safely outside the graph!)
                     legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+                    margin=dict(l=40, r=40, t=80, b=40),
                     
-                    margin=dict(l=40, r=40, t=80, b=40)
+                    # --- THE MAGIC FIX: PRESERVES UI STATE BETWEEN RERUNS ---
+                    uirevision=selected_color
                 )
                 
                 fig.update_yaxes(title_text="Normalized Value (Color Data)", secondary_y=False)
