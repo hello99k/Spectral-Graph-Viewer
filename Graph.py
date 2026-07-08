@@ -262,8 +262,16 @@ elif st.session_state.app_state == 'graph':
                 ref_x_col = df_ref.columns[0]
                 ref_options = df_ref.columns[1:].tolist()
 
-            # Note: We completely removed the Streamlit toggles here!
-
+            # --- THE RETURN OF THE STREAMLIT TOGGLES ---
+            selected_refs = []
+            if ref_options:
+                st.markdown("### Reference Lighting Overlays")
+                cols = st.columns(len(ref_options))
+                for i, ref_name in enumerate(ref_options):
+                    with cols[i]:
+                        if st.toggle(ref_name):
+                            selected_refs.append(ref_name)
+            
             with st.expander("⚙️ Graph Settings"):
                 st.markdown("#### Line Colors")
                 col1, col2 = st.columns(2)
@@ -303,25 +311,20 @@ elif st.session_state.app_state == 'graph':
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- ADD ALL NORMALIZED COLUMNS ---
+                # --- ADD ALL DATA SERIES (Controlled by Plotly Legend clicks) ---
                 for col_name in normalized_cols:
                     fig.add_trace(go.Scatter(
                         x=df_color['WL (nm)'], y=df_color[col_name], 
                         mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
                     ), secondary_y=False)
                 
-                # --- ADD ALL LIGHTING CONDITIONS (HIDDEN BY DEFAULT) ---
-                if ref_options and df_ref is not None:
-                    for ref in ref_options:
+                # --- ADD LIGHTING CONDITIONS (Controlled by Streamlit Toggles) ---
+                if selected_refs and df_ref is not None:
+                    for ref in selected_refs:
                         fig.add_trace(go.Scatter(
                             x=df_ref[ref_x_col], y=df_ref[ref], 
-                            mode='lines', 
-                            name=f"💡 {ref}", # Added a small icon to distinguish them in the legend!
-                            line=dict(width=2, dash='dash', color=light_color_picks[ref]), 
-                            hoverinfo='x+y+name',
-                            
-                            # THE MAGIC: Puts it in the legend, but keeps it hidden until clicked
-                            visible='legendonly' 
+                            mode='lines', name=f"💡 {ref}",
+                            line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
                         ), secondary_y=True)
                 
                 fig.update_layout(
@@ -330,7 +333,10 @@ elif st.session_state.app_state == 'graph':
                     hovermode="x unified",
                     template="plotly_white",
                     legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
-                    margin=dict(l=40, r=40, t=80, b=40)
+                    margin=dict(l=40, r=40, t=80, b=40),
+                    
+                    # --- THE MAGIC LOCK: Preserves your manual legend clicks when a toggle is flipped! ---
+                    uirevision=selected_color
                 )
                 
                 fig.update_yaxes(title_text="Normalized Value (Color Data)", secondary_y=False)
