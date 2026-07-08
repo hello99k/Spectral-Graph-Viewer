@@ -262,6 +262,18 @@ elif st.session_state.app_state == 'graph':
                 ref_x_col = df_ref.columns[0]
                 ref_options = df_ref.columns[1:].tolist()
 
+            # --- NATIVE STREAMLIT SERIES SELECTOR ---
+            if normalized_cols:
+                st.markdown("### Data Series to Graph")
+                selected_data_series = st.multiselect(
+                    "Select Series:", 
+                    options=normalized_cols, 
+                    default=normalized_cols,
+                    label_visibility="collapsed"
+                )
+            else:
+                selected_data_series = []
+
             selected_refs = []
             if ref_options:
                 st.markdown("### Reference Lighting Overlays")
@@ -277,7 +289,6 @@ elif st.session_state.app_state == 'graph':
                 with col1:
                     st.markdown("**Color Data Series**")
                     data_color_picks = {}
-                    # Provide a vibrant palette so dynamic columns get unique colors
                     default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
                     
                     if normalized_cols:
@@ -307,13 +318,12 @@ elif st.session_state.app_state == 'graph':
                 with img_col3:
                     export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
-            # Check if WL (nm) exists and at least one normalized column exists
             if 'WL (nm)' in df_color.columns and len(normalized_cols) > 0:
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # Dynamically graph every normalized column found
-                for col_name in normalized_cols:
+                # --- ONLY GRAPH THE SERIES CHOSEN IN THE MULTISELECT ---
+                for col_name in selected_data_series:
                     fig.add_trace(go.Scatter(
                         x=df_color['WL (nm)'], y=df_color[col_name], 
                         mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
@@ -333,7 +343,7 @@ elif st.session_state.app_state == 'graph':
                     hovermode="x unified",
                     template="plotly_white",
                     
-                    # THIS IS THE NEW LEGEND POSITION (Fixed Python Comment!)
+                    # THIS IS THE NEW LEGEND POSITION (Moved safely outside the graph!)
                     legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
                     
                     margin=dict(l=40, r=40, t=80, b=40)
