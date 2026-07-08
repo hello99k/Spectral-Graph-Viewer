@@ -332,7 +332,10 @@ elif st.session_state.app_state == 'graph':
                     xaxis_title="Wavelength (nm)",
                     hovermode="x unified",
                     template="plotly_white",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    
+                    /* THIS IS THE NEW LEGEND POSITION */
+                    legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+                    
                     margin=dict(l=40, r=40, t=80, b=40)
                 )
                 
