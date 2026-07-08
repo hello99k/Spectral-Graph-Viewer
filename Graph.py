@@ -252,6 +252,9 @@ elif st.session_state.app_state == 'graph':
             selected_color = st.selectbox("Color Name:", color_sheets)
             df_color = pd.read_excel(xls, sheet_name=selected_color)
             
+            # --- DYNAMICALLY FIND NORMALIZED COLUMNS ---
+            normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
+            
             df_ref = None
             ref_options = []
             if ref_sheet_name:
@@ -273,8 +276,17 @@ elif st.session_state.app_state == 'graph':
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Color Data Series**")
-                    gvx_color = st.color_picker("GVX Normalized", "#1f77b4")
-                    band_color = st.color_picker("Band Normalized", "#ff7f0e")
+                    data_color_picks = {}
+                    # Provide a vibrant palette so dynamic columns get unique colors
+                    default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+                    
+                    if normalized_cols:
+                        for i, col_name in enumerate(normalized_cols):
+                            default_hex = default_data_colors[i % len(default_data_colors)]
+                            data_color_picks[col_name] = st.color_picker(col_name, default_hex)
+                    else:
+                        st.info("No 'Normalized' columns found to configure.")
+                        
                 with col2:
                     st.markdown("**Reference Lighting Series**")
                     light_color_picks = {}
@@ -295,20 +307,17 @@ elif st.session_state.app_state == 'graph':
                 with img_col3:
                     export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
-            required_cols = ['WL (nm)', 'GVX Normalized', 'Band Normalized']
-            if all(col in df_color.columns for col in required_cols):
+            # Check if WL (nm) exists and at least one normalized column exists
+            if 'WL (nm)' in df_color.columns and len(normalized_cols) > 0:
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                fig.add_trace(go.Scatter(
-                    x=df_color['WL (nm)'], y=df_color['GVX Normalized'], 
-                    mode='lines', name='GVX Normalized', line=dict(width=2, color=gvx_color)
-                ), secondary_y=False)
-                
-                fig.add_trace(go.Scatter(
-                    x=df_color['WL (nm)'], y=df_color['Band Normalized'], 
-                    mode='lines', name='Band Normalized', line=dict(width=2, color=band_color)
-                ), secondary_y=False)
+                # Dynamically graph every normalized column found
+                for col_name in normalized_cols:
+                    fig.add_trace(go.Scatter(
+                        x=df_color['WL (nm)'], y=df_color[col_name], 
+                        mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
+                    ), secondary_y=False)
                 
                 if selected_refs and df_ref is not None:
                     for ref in selected_refs:
@@ -343,7 +352,7 @@ elif st.session_state.app_state == 'graph':
                 st.plotly_chart(fig, use_container_width=True, config=plot_config)
                 
             else:
-                st.error(f"The tab '{selected_color}' is missing required columns: {required_cols}")
+                st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or 'Normalized' columns.")
 
     except Exception as e:
         st.error(f"An error occurred while reading the file: {e}")
