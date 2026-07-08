@@ -333,7 +333,7 @@ elif st.session_state.app_state == 'graph':
                     hovermode="x unified",
                     template="plotly_white",
                     
-                    /* THIS IS THE NEW LEGEND POSITION */
+                    # THIS IS THE NEW LEGEND POSITION (Fixed Python Comment!)
                     legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
                     
                     margin=dict(l=40, r=40, t=80, b=40)
