@@ -368,7 +368,8 @@ elif st.session_state.app_state == 'graph':
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
                 
-                fig.update_yaxes(title_text="Relative Reflectance or Transmittance", secondary_y=False)
+                fig.update_yaxes(title_text="Relative Reflectance", secondary_y=False)
+                fig.update_yaxes(title_text="Relative Transmittance", secondary_y=True, showgrid=False)
                 
                 plot_config = {
                     'toImageButtonOptions': {
@@ -387,3 +388,4 @@ elif st.session_state.app_state == 'graph':
 
     except Exception as e:
         st.error(f"An error occurred while reading the file: {e}")
+
