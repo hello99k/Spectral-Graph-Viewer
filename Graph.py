@@ -1,10 +1,3 @@
-That is a much better spot for it. It groups the color picking together at the top and keeps the structural/view changes grouped right above the export options.
-
-I have moved the `Truncate Wavelength Bounds` toggle down below the line color pickers and right above the image export dimensions.
-
-**Wipe your file clean, use the Copy Icon, paste, and Save:**
-
-```python
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
