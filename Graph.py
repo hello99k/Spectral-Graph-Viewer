@@ -368,7 +368,7 @@ elif st.session_state.app_state == 'graph':
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
                 
-                fig.update_yaxes(title_text="Reflectance/Transmittance", secondary_y=False)
+                fig.update_yaxes(title_text="Relative Reflectance or Transmittance", secondary_y=False)
                 
                 plot_config = {
                     'toImageButtonOptions': {
