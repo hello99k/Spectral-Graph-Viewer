@@ -301,7 +301,7 @@ elif st.session_state.app_state == 'graph':
                 # --- SPLIT TRUNCATE TOGGLES ---
                 st.markdown("#### View Options")
                 truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
-                truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
+                truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=True)
                 
                 st.divider()
                 
@@ -368,8 +368,7 @@ elif st.session_state.app_state == 'graph':
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
                 
-                fig.update_yaxes(title_text="Normalized Value (Color Data)", secondary_y=False)
-                fig.update_yaxes(title_text="Relative Power (Ref. Lighting)", secondary_y=True, showgrid=False)
+                fig.update_yaxes(title_text="Reflectance/Transmittance", secondary_y=False)
                 
                 plot_config = {
                     'toImageButtonOptions': {
