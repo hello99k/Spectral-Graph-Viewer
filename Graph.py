@@ -386,5 +386,3 @@ elif st.session_state.app_state == 'graph':
 
     except Exception as e:
         st.error(f"An error occurred while reading the file: {e}")
-
-```
