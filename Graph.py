@@ -1,3 +1,10 @@
+That is a much better spot for it. It groups the color picking together at the top and keeps the structural/view changes grouped right above the export options.
+
+I have moved the `Truncate Wavelength Bounds` toggle down below the line color pickers and right above the image export dimensions.
+
+**Wipe your file clean, use the Copy Icon, paste, and Save:**
+
+```python
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -273,11 +280,6 @@ elif st.session_state.app_state == 'graph':
                             selected_refs.append(ref_name)
             
             with st.expander("⚙️ Graph Settings"):
-                # --- NEW TRUNCATE TOGGLE ---
-                st.markdown("#### View Options")
-                truncate_bounds = st.toggle("Truncate Wavelength Bounds (400nm - 700nm)", value=True)
-                st.divider()
-                
                 st.markdown("#### Line Colors")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -302,7 +304,14 @@ elif st.session_state.app_state == 'graph':
                             light_color_picks[ref_name] = st.color_picker(ref_name, default_hex)
                 
                 st.divider()
-                st.markdown("#### High-Resolution Image Export")
+                
+                # --- MOVED TRUNCATE TOGGLE ---
+                st.markdown("#### View Options")
+                truncate_bounds = st.toggle("Truncate Wavelength Bounds (400nm - 700nm)", value=True)
+                
+                st.divider()
+                
+                st.markdown("#### Image Export")
                 st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
                 img_col1, img_col2, img_col3 = st.columns(3)
                 with img_col1:
@@ -384,3 +393,5 @@ elif st.session_state.app_state == 'graph':
 
     except Exception as e:
         st.error(f"An error occurred while reading the file: {e}")
+
+```
