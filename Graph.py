@@ -262,7 +262,7 @@ elif st.session_state.app_state == 'graph':
                 ref_x_col = df_ref.columns[0]
                 ref_options = df_ref.columns[1:].tolist()
 
-            # --- THE RETURN OF THE STREAMLIT TOGGLES ---
+            # --- STREAMLIT TOGGLES ---
             selected_refs = []
             if ref_options:
                 st.markdown("### Reference Lighting Overlays")
@@ -273,6 +273,11 @@ elif st.session_state.app_state == 'graph':
                             selected_refs.append(ref_name)
             
             with st.expander("⚙️ Graph Settings"):
+                # --- NEW TRUNCATE TOGGLE ---
+                st.markdown("#### View Options")
+                truncate_bounds = st.toggle("Truncate Wavelength Bounds (400nm - 700nm)", value=True)
+                st.divider()
+                
                 st.markdown("#### Line Colors")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -311,18 +316,34 @@ elif st.session_state.app_state == 'graph':
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- ADD ALL DATA SERIES (Controlled by Plotly Legend clicks) ---
+                # --- DATA SERIES GRAPHING WITH TRUNCATION LOGIC ---
                 for col_name in normalized_cols:
+                    if truncate_bounds:
+                        mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
+                        plot_x = df_color.loc[mask, 'WL (nm)']
+                        plot_y = df_color.loc[mask, col_name]
+                    else:
+                        plot_x = df_color['WL (nm)']
+                        plot_y = df_color[col_name]
+                        
                     fig.add_trace(go.Scatter(
-                        x=df_color['WL (nm)'], y=df_color[col_name], 
+                        x=plot_x, y=plot_y, 
                         mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
                     ), secondary_y=False)
                 
-                # --- ADD LIGHTING CONDITIONS (Controlled by Streamlit Toggles) ---
+                # --- LIGHTING OVERLAYS GRAPHING WITH TRUNCATION LOGIC ---
                 if selected_refs and df_ref is not None:
                     for ref in selected_refs:
+                        if truncate_bounds:
+                            ref_mask = (df_ref[ref_x_col] >= 400) & (df_ref[ref_x_col] <= 700)
+                            plot_x_ref = df_ref.loc[ref_mask, ref_x_col]
+                            plot_y_ref = df_ref.loc[ref_mask, ref]
+                        else:
+                            plot_x_ref = df_ref[ref_x_col]
+                            plot_y_ref = df_ref[ref]
+                            
                         fig.add_trace(go.Scatter(
-                            x=df_ref[ref_x_col], y=df_ref[ref], 
+                            x=plot_x_ref, y=plot_y_ref, 
                             mode='lines', name=f"💡 {ref}",
                             line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
                         ), secondary_y=True)
@@ -334,10 +355,14 @@ elif st.session_state.app_state == 'graph':
                     template="plotly_white",
                     legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
                     margin=dict(l=40, r=40, t=80, b=40),
-                    
-                    # --- THE MAGIC LOCK: Preserves your manual legend clicks when a toggle is flipped! ---
                     uirevision=selected_color
                 )
+                
+                # --- EXPLICIT AXIS RANGE OVERRIDE ---
+                if truncate_bounds:
+                    x_min = df_color['WL (nm)'].min()
+                    x_max = df_color['WL (nm)'].max()
+                    fig.update_xaxes(range=[x_min, x_max])
                 
                 fig.update_yaxes(title_text="Normalized Value (Color Data)", secondary_y=False)
                 fig.update_yaxes(title_text="Relative Power (Ref. Lighting)", secondary_y=True, showgrid=False)
