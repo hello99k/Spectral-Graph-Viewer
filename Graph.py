@@ -298,9 +298,10 @@ elif st.session_state.app_state == 'graph':
                 
                 st.divider()
                 
-                # --- MOVED TRUNCATE TOGGLE ---
+                # --- SPLIT TRUNCATE TOGGLES ---
                 st.markdown("#### View Options")
-                truncate_bounds = st.toggle("Truncate Wavelength Bounds (400nm - 700nm)", value=True)
+                truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
+                truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=True)
                 
                 st.divider()
                 
@@ -318,9 +319,9 @@ elif st.session_state.app_state == 'graph':
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- DATA SERIES GRAPHING WITH TRUNCATION LOGIC ---
+                # --- DATA SERIES GRAPHING WITH INDEPENDENT TRUNCATION LOGIC ---
                 for col_name in normalized_cols:
-                    if truncate_bounds:
+                    if truncate_color_bounds:
                         mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
                         plot_x = df_color.loc[mask, 'WL (nm)']
                         plot_y = df_color.loc[mask, col_name]
@@ -333,10 +334,10 @@ elif st.session_state.app_state == 'graph':
                         mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
                     ), secondary_y=False)
                 
-                # --- LIGHTING OVERLAYS GRAPHING WITH TRUNCATION LOGIC ---
+                # --- LIGHTING OVERLAYS GRAPHING WITH INDEPENDENT TRUNCATION LOGIC ---
                 if selected_refs and df_ref is not None:
                     for ref in selected_refs:
-                        if truncate_bounds:
+                        if truncate_lighting_bounds:
                             ref_mask = (df_ref[ref_x_col] >= 400) & (df_ref[ref_x_col] <= 700)
                             plot_x_ref = df_ref.loc[ref_mask, ref_x_col]
                             plot_y_ref = df_ref.loc[ref_mask, ref]
@@ -361,7 +362,8 @@ elif st.session_state.app_state == 'graph':
                 )
                 
                 # --- EXPLICIT AXIS RANGE OVERRIDE ---
-                if truncate_bounds:
+                # Locks the X-axis to the original data bounds so it doesn't auto-zoom when truncated
+                if truncate_color_bounds or truncate_lighting_bounds:
                     x_min = df_color['WL (nm)'].min()
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
