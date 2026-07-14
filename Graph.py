@@ -259,7 +259,7 @@ elif st.session_state.app_state == 'graph':
                         backdrop-filter: blur(16px) !important;
                         -webkit-backdrop-filter: blur(16px) !important;
                         
-                        border: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important;
                         border-radius: 12px !important;
                         padding: 20px !important;
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
@@ -281,29 +281,11 @@ elif st.session_state.app_state == 'graph':
                         width: calc(100% + 40px) !important;
                         
                         /* Clean solid border line */
-                        border-bottom: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
-                    }
-
-                    /* 3. RESTORE THE BUTTON BOX */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button {
-                        opacity: 1.0 !important;
-                        background-color: var(--secondary-background-color) !important;
-                        border: 1px solid color-mix(in srgb, var(--text-color) 20%, transparent) !important;
-                        border-radius: 8px !important;
-                        color: var(--text-color) !important;
-                        transition: all 0.2s ease-in-out !important;
+                        border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
                     }
                     
-                    /* 4. THEME-AWARE HOVER EFFECT */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button:hover {
-                        opacity: 1.0 !important;
-                        
-                        /* Mixes the background with 10% text color (Lighter in Dark mode, Darker in Light mode) */
-                        background-color: color-mix(in srgb, var(--secondary-background-color) 90%, var(--text-color)) !important;
-                        
-                        border-color: var(--primary-color) !important;
-                        color: var(--primary-color) !important;
-                    }
+                    /* Note: All custom button CSS has been completely removed! 
+                       Streamlit will now render its native, fully functional button. */
                     </style>
                 """, unsafe_allow_html=True)
                 
@@ -320,6 +302,7 @@ elif st.session_state.app_state == 'graph':
                         dynamic_data_colors = []
                         for i in range(num_cols):
                             hue = i / num_cols
+                            # Desaturated to 60% for smoother, cleaner pastels/midtomes
                             r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
                             dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
