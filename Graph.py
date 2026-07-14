@@ -10,7 +10,7 @@ import colorsys
 # ==========================================
 # 1. INITIAL SETUP & MEMORY
 # ==========================================
-st.set_page_config(page_title="Color Metamerism Viewer", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Color Metamerism Viewer", layout="wide", initial_sidebar_state="collapsed")
 
 if 'app_state' not in st.session_state:
     st.session_state.app_state = 'splash'
@@ -19,6 +19,8 @@ if 'file_bytes' not in st.session_state:
 if 'upload_key' not in st.session_state:
     st.session_state.upload_key = 0
     
+if 'show_color_overlay' not in st.session_state:
+    st.session_state.show_color_overlay = False
 if 'custom_colors' not in st.session_state:
     st.session_state.custom_colors = {}
 
@@ -80,14 +82,6 @@ if font_medium_b64:
 # 3. PAGE 1: THE SPLASH SCREEN
 # ==========================================
 if st.session_state.app_state == 'splash':
-    
-    # Hide the sidebar entirely on the splash screen
-    st.markdown("""
-        <style>
-        [data-testid="stSidebar"] { display: none !important; }
-        [data-testid="collapsedControl"] { display: none !important; }
-        </style>
-    """, unsafe_allow_html=True)
     
     if bg_b64:
         bg_css = f"background-image: url(data:image/jpeg;base64,{bg_b64});background-size: cover; background-position: center 41%;"
@@ -173,6 +167,21 @@ elif st.session_state.app_state == 'graph':
     
     st.markdown("""<style>.block-container { padding-top: 3rem !important; }</style>""", unsafe_allow_html=True)
 
+    col_back, col_space = st.columns([1, 5])
+    with col_back:
+        if st.button("⬅️ Back to Upload"):
+            st.session_state.app_state = 'splash'
+            st.session_state.file_bytes = None
+            st.session_state.upload_key += 1 
+            st.rerun()
+
+    st.markdown("""
+        <div style="font-family: 'NeueHaas', sans-serif !important; font-weight: normal !important; font-size: 2.5rem; padding-bottom: 15px; -webkit-font-smoothing: antialiased;">
+            Color Reflectance Data Viewer
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
+
     try:
         xls = pd.ExcelFile(io.BytesIO(st.session_state.file_bytes))
         ref_sheet_name = next((sheet for sheet in xls.sheet_names if "reference lighting" in sheet.lower()), None)
@@ -181,88 +190,18 @@ elif st.session_state.app_state == 'graph':
         if not color_sheets:
             st.error("No valid color tabs found in the uploaded file.")
         else:
+            selected_color = st.selectbox("Color Name:", color_sheets)
+            df_color = pd.read_excel(xls, sheet_name=selected_color)
             
-            # --- SIDEBAR UI (Replaces the broken floating menu) ---
-            with st.sidebar:
-                st.markdown("## 🎨 Color Settings")
-                st.markdown("*Adjust series colors here. This menu scrolls independently!*")
-                st.divider()
-                
-                selected_color = st.selectbox("Active Tab:", color_sheets)
-                df_color = pd.read_excel(xls, sheet_name=selected_color)
-                
-                normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
-                raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
-                
-                df_ref = None
-                ref_options = []
-                if ref_sheet_name:
-                    df_ref = pd.read_excel(xls, sheet_name=ref_sheet_name)
-                    ref_x_col = df_ref.columns[0]
-                    ref_options = df_ref.columns[1:].tolist()
-
-                # Determine active columns (requires knowing if plot_normalized is toggled)
-                # We default to raw_cols here to pre-generate the colors safely
-                has_normalized = len(normalized_cols) > 0
-                
-                # --- DATA SERIES COLORS ---
-                st.markdown("### 📊 Data Series")
-                active_data_cols = raw_cols # Fallback
-                if has_normalized:
-                     active_data_cols = normalized_cols
-                     
-                if active_data_cols:
-                    num_cols = len(active_data_cols)
-                    dynamic_data_colors = []
-                    for i in range(num_cols):
-                        hue = i / num_cols
-                        r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
-                        dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
-
-                    for i, col_name in enumerate(active_data_cols):
-                        def_hex = dynamic_data_colors[i]
-                        current_val = st.session_state.custom_colors.get(col_name, def_hex)
-                        new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
-                        st.session_state.custom_colors[col_name] = new_val
-                        
-                    # Also pre-generate colors for raw cols if they aren't active right now
-                    if has_normalized and raw_cols:
-                         for i, col_name in enumerate(raw_cols):
-                            def_hex = dynamic_data_colors[i % len(dynamic_data_colors)]
-                            current_val = st.session_state.custom_colors.get(col_name, def_hex)
-                            new_val = st.color_picker(col_name, value=current_val, key=f"cp_raw_{col_name}")
-                            st.session_state.custom_colors[col_name] = new_val
-                else:
-                    st.info("No active columns to color.")
-                
-                st.divider()
-                
-                # --- LIGHTING SERIES COLORS ---
-                st.markdown("### 💡 Lighting Series")
-                default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
-                if ref_options:
-                    for i, ref_name in enumerate(ref_options):
-                        def_hex = default_light_colors[i % len(default_light_colors)]
-                        current_val = st.session_state.custom_colors.get(ref_name, def_hex)
-                        new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
-                        st.session_state.custom_colors[ref_name] = new_val
-
-
-            # --- MAIN CONTENT AREA ---
-            col_back, col_space = st.columns([1, 5])
-            with col_back:
-                if st.button("⬅️ Back to Upload"):
-                    st.session_state.app_state = 'splash'
-                    st.session_state.file_bytes = None
-                    st.session_state.upload_key += 1 
-                    st.rerun()
-
-            st.markdown(f"""
-                <div style="font-family: 'NeueHaas', sans-serif !important; font-weight: normal !important; font-size: 2.5rem; padding-bottom: 15px; -webkit-font-smoothing: antialiased;">
-                    Reflectance Data: {selected_color}
-                </div>
-            """, unsafe_allow_html=True)
-            st.divider()
+            normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
+            raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
+            
+            df_ref = None
+            ref_options = []
+            if ref_sheet_name:
+                df_ref = pd.read_excel(xls, sheet_name=ref_sheet_name)
+                ref_x_col = df_ref.columns[0]
+                ref_options = df_ref.columns[1:].tolist()
 
             selected_refs = []
             if ref_options:
@@ -275,13 +214,23 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
+                if st.button("🎨 Open Color Menu", use_container_width=True):
+                    st.session_state.show_color_overlay = True
+                    st.rerun()
+                
+                st.divider()
                 st.markdown("#### View Options")
+                
                 auto_scale_y = st.toggle("Auto Scale Y-axis", value=False)
+                has_normalized = len(normalized_cols) > 0
                 plot_normalized = st.toggle("Plot Normalized Values", value=False, disabled=not has_normalized)
+                
                 truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
                 truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
                 
                 st.divider()
+                
+                active_data_cols = normalized_cols if plot_normalized else raw_cols
                 
                 st.markdown("#### High-Resolution Image Export")
                 st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
@@ -290,8 +239,90 @@ elif st.session_state.app_state == 'graph':
                 with img_col2: export_height = st.number_input("Height (px)", min_value=300, value=1080, step=100)
                 with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
-            # Assign active columns based on the toggle state for the final render
-            active_data_cols = normalized_cols if plot_normalized else raw_cols
+            # ==========================================
+            # THE MAGIC CSS FLOATING WINDOW OVERLAY
+            # ==========================================
+            if st.session_state.show_color_overlay:
+                st.markdown("""
+                    <style>
+                    /* 1. MAIN FLOATING WINDOW */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor):not(:has(div[data-testid="stVerticalBlock"])) {
+                        position: fixed !important;
+                        top: 80px !important;
+                        right: 40px !important;
+                        width: 320px !important;
+                        max-height: calc(100vh - 120px) !important; 
+                        overflow-y: auto !important;
+                        
+                        background-color: var(--secondary-background-color) !important; 
+                        background-color: color-mix(in srgb, var(--background-color) 33%, transparent) !important;
+                        backdrop-filter: blur(16px) !important;
+                        -webkit-backdrop-filter: blur(16px) !important;
+                        
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important;
+                        border-radius: 12px !important;
+                        padding: 20px !important;
+                        box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
+                        z-index: 9999999 !important;
+                    }
+                    
+                    /* 2. STICKY SOLID TABLE CLOTH */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
+                        position: sticky !important;
+                        top: -20px !important;
+                        z-index: 9999999 !important;
+                        
+                        /* 100% Solid Background to completely block scrolling swatches */
+                        background-color: var(--background-color) !important;
+                        
+                        /* Pulls the header out to cover the 20px padding of the parent window */
+                        margin: -20px -20px 15px -20px !important;
+                        padding: 20px 20px 15px 20px !important;
+                        width: calc(100% + 40px) !important;
+                        
+                        /* Clean solid border line */
+                        border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
+                    }
+                    
+                    /* Note: All custom button CSS has been completely removed! 
+                       Streamlit will now render its native, fully functional button. */
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                with st.container():
+                    st.markdown('<div class="floating-color-menu-anchor"></div>', unsafe_allow_html=True)
+                    
+                    if st.button("✖ Close Overlay", use_container_width=True):
+                        st.session_state.show_color_overlay = False
+                        st.rerun()
+                    
+                    st.markdown("### 📊")
+                    if active_data_cols:
+                        num_cols = len(active_data_cols)
+                        dynamic_data_colors = []
+                        for i in range(num_cols):
+                            hue = i / num_cols
+                            # Desaturated to 60% for smoother, cleaner pastels/midtomes
+                            r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
+                            dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
+
+                        for i, col_name in enumerate(active_data_cols):
+                            def_hex = dynamic_data_colors[i]
+                            current_val = st.session_state.custom_colors.get(col_name, def_hex)
+                            new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
+                            st.session_state.custom_colors[col_name] = new_val
+                    else:
+                        st.info("No active columns to color.")
+                    
+                    st.divider()
+                    st.markdown("### 💡")
+                    default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
+                    if ref_options:
+                        for i, ref_name in enumerate(ref_options):
+                            def_hex = default_light_colors[i % len(default_light_colors)]
+                            current_val = st.session_state.custom_colors.get(ref_name, def_hex)
+                            new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
+                            st.session_state.custom_colors[ref_name] = new_val
 
             # ==========================================
             # RENDER GRAPH
