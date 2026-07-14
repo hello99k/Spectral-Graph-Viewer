@@ -263,15 +263,16 @@ elif st.session_state.app_state == 'graph':
                         
                         border-radius: 12px !important;
                         padding: 20px !important;
-                        box-shadow: 0px 10px 40px rgba(0,0,0,0.3) !important;
-                        z-index: 999999 !important;
+                        box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
+                        z-index: 9999999 !important; /* Maxed out to beat Plotly Legend */
                     }
                     
-                    /* STICKY CLOSE BUTTON HEADER (Smooth gradient wall-to-wall) */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:has(button) {
+                    /* STICKY CLOSE BUTTON HEADER */
+                    /* Specifically target the 2nd element (the button) to avoid trapping color pickers! */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
                         position: sticky !important;
                         top: -20px !important;
-                        z-index: 999999 !important;
+                        z-index: 9999999 !important;
                         
                         /* Pulls the gradient out to cover the 20px padding of the parent window */
                         margin: -20px -20px 0px -20px !important;
@@ -282,15 +283,14 @@ elif st.session_state.app_state == 'graph':
                         background: linear-gradient(to bottom, var(--background-color) 65%, transparent 100%) !important;
                     }
 
-                    /* OVERRIDE STREAMLIT'S DEFAULT BUTTON HOVER OPACITY */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) button {
+                    /* OVERRIDE ONLY THE CLOSE BUTTON'S HOVER OPACITY */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button {
                         opacity: 1.0 !important;
                         background-color: var(--background-color) !important;
                         transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
                     }
                     
-                    /* Theme-Aware Brightness Swap */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) button:hover {
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button:hover {
                         opacity: 1.0 !important;
                         background-color: var(--secondary-background-color) !important;
                         border-color: var(--primary-color) !important;
@@ -343,7 +343,7 @@ elif st.session_state.app_state == 'graph':
                 dynamic_data_colors = []
                 for i in range(num_cols):
                     hue = i / num_cols
-                    r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6) # Matched saturation drop here too!
+                    r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
                     dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
                 for i, col_name in enumerate(active_data_cols):
