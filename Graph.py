@@ -240,76 +240,94 @@ elif st.session_state.app_state == 'graph':
                 with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
             # ==========================================
-            # THE MAGIC NATIVE SCROLLING OVERLAY
+            # THE MAGIC CSS FLOATING WINDOW OVERLAY
             # ==========================================
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* 1. MAIN FLOATING WINDOW */
-                    /* Targets the exact vertical block containing our anchor */
+                    /* 1. MAIN FLOATING WINDOW (Restored Glassmorphism & Width) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-color-menu-anchor) {
                         position: fixed !important;
                         top: 80px !important;
                         right: 40px !important;
                         width: 320px !important;
+                        max-height: calc(100vh - 120px) !important; 
+                        overflow-y: auto !important;
                         
-                        /* Solid background for the entire window */
-                        background-color: var(--background-color) !important; 
+                        background-color: var(--secondary-background-color) !important; 
+                        background-color: color-mix(in srgb, var(--background-color) 33%, transparent) !important;
+                        backdrop-filter: blur(16px) !important;
+                        -webkit-backdrop-filter: blur(16px) !important;
                         
-                        border: 1px solid rgba(128, 128, 128, 0.3) !important;
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important;
                         border-radius: 12px !important;
-                        padding: 15px !important;
+                        padding: 0px 20px 20px 20px !important; /* Flush top */
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
                         z-index: 9999999 !important;
                     }
                     
-                    /* 2. HIDE THE INVISIBLE ANCHOR CONTAINER TO FIX GAPS */
-                    div.element-container:has(.floating-color-menu-anchor) {
+                    /* 2. COMPLETELY HIDE THE INVISIBLE ANCHOR GAP */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-color-menu-anchor) > div.element-container:nth-child(1) {
                         display: none !important;
+                    }
+                    
+                    /* 3. STICKY SOLID TABLE CLOTH (Targets exact container holding the close button) */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-color-menu-anchor) > div.element-container:nth-child(2) {
+                        position: sticky !important;
+                        top: 0px !important;
+                        z-index: 9999999 !important;
+                        
+                        /* 100% Solid Background to block scrolling swatches */
+                        background-color: var(--background-color) !important;
+                        
+                        /* Matches window borders */
+                        border-top-left-radius: 12px !important;
+                        border-top-right-radius: 12px !important;
+                        
+                        /* Stretches to the inner walls and automatically centers the button */
+                        margin: 0px -20px 15px -20px !important;
+                        padding: 20px 20px 15px 20px !important;
+                        
+                        /* Clean solid dividing line */
+                        border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
                 
                 with st.container():
-                    # The invisible anchor that applies the CSS to this specific container
                     st.markdown('<div class="floating-color-menu-anchor"></div>', unsafe_allow_html=True)
                     
-                    # --- FIXED HEADER AREA (Does not scroll) ---
                     if st.button("✖ Close Overlay", use_container_width=True):
                         st.session_state.show_color_overlay = False
                         st.rerun()
-                        
-                    st.divider() # Creates the physical horizontal line
                     
-                    # --- NATIVE SCROLLING CONTENT AREA ---
-                    # Using Streamlit's height parameter automatically creates an overflow scroll box!
-                    with st.container(height=400, border=False):
-                        st.markdown("### 📊")
-                        if active_data_cols:
-                            num_cols = len(active_data_cols)
-                            dynamic_data_colors = []
-                            for i in range(num_cols):
-                                hue = i / num_cols
-                                r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
-                                dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
+                    st.markdown("### 📊")
+                    if active_data_cols:
+                        num_cols = len(active_data_cols)
+                        dynamic_data_colors = []
+                        for i in range(num_cols):
+                            hue = i / num_cols
+                            # Desaturated to 60% for smoother, cleaner pastels/midtomes
+                            r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
+                            dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
-                            for i, col_name in enumerate(active_data_cols):
-                                def_hex = dynamic_data_colors[i]
-                                current_val = st.session_state.custom_colors.get(col_name, def_hex)
-                                new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
-                                st.session_state.custom_colors[col_name] = new_val
-                        else:
-                            st.info("No active columns to color.")
-                        
-                        st.divider()
-                        st.markdown("### 💡")
-                        default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
-                        if ref_options:
-                            for i, ref_name in enumerate(ref_options):
-                                def_hex = default_light_colors[i % len(default_light_colors)]
-                                current_val = st.session_state.custom_colors.get(ref_name, def_hex)
-                                new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
-                                st.session_state.custom_colors[ref_name] = new_val
+                        for i, col_name in enumerate(active_data_cols):
+                            def_hex = dynamic_data_colors[i]
+                            current_val = st.session_state.custom_colors.get(col_name, def_hex)
+                            new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
+                            st.session_state.custom_colors[col_name] = new_val
+                    else:
+                        st.info("No active columns to color.")
+                    
+                    st.divider()
+                    st.markdown("### 💡")
+                    default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
+                    if ref_options:
+                        for i, ref_name in enumerate(ref_options):
+                            def_hex = default_light_colors[i % len(default_light_colors)]
+                            current_val = st.session_state.custom_colors.get(ref_name, def_hex)
+                            new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
+                            st.session_state.custom_colors[ref_name] = new_val
 
             # ==========================================
             # RENDER GRAPH
