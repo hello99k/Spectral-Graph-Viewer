@@ -245,27 +245,24 @@ elif st.session_state.app_state == 'graph':
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* ----------------------------------------------------
-                       LAYER 1: THE BUTTON LAYER (Solid, Top)
-                       ---------------------------------------------------- */
+                    /* 1. LAYER 1: THE BUTTON LAYER (Solid, Extreme Blur) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
                         position: fixed !important;
                         top: 80px !important;
                         right: 40px !important;
                         width: 320px !important;
-                        z-index: 9999999 !important; /* Highest layer, sits on top */
+                        z-index: 9999999 !important; 
                         
-                        /* 100% Solid Theme Background */
-                        background-color: var(--background-color) !important; 
+                        /* Extreme Blur + High Opacity for "Frosted Glass" */
+                        background-color: color-mix(in srgb, var(--background-color) 70%, transparent) !important; 
+                        backdrop-filter: blur(30px) !important;
+                        -webkit-backdrop-filter: blur(30px) !important;
                         
                         border: 1px solid rgba(128, 128, 128, 0.2) !important;
-                        border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important; /* Distinct visual separator */
-                        
-                        /* Rounded top, flat bottom to connect with menu */
+                        border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important;
                         border-radius: 12px 12px 0px 0px !important; 
-                        
                         padding: 15px 20px 15px 20px !important;
-                        box-shadow: 0px -5px 20px rgba(0,0,0,0.2) !important;
+                        box-shadow: 0px 5px 20px rgba(0,0,0,0.3) !important;
                     }
                     
                     /* Hide invisible anchor gap */
@@ -273,17 +270,15 @@ elif st.session_state.app_state == 'graph':
                         display: none !important;
                     }
 
-                    /* ----------------------------------------------------
-                       LAYER 2: THE MENU LAYER (Glassmorphic, Bottom)
-                       ---------------------------------------------------- */
+                    /* 2. LAYER 2: THE MENU LAYER (Glassmorphic, Bottom) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
                         position: fixed !important;
-                        top: 80px !important; /* Starts at the exact same height as the button block */
+                        top: 80px !important;
                         right: 40px !important;
                         width: 320px !important;
                         max-height: calc(100vh - 120px) !important; 
                         overflow-y: auto !important;
-                        z-index: 9999998 !important; /* Lower layer, sits underneath the button */
+                        z-index: 9999998 !important; 
                         
                         background-color: var(--secondary-background-color) !important; 
                         background-color: color-mix(in srgb, var(--background-color) 40%, transparent) !important;
@@ -293,7 +288,7 @@ elif st.session_state.app_state == 'graph':
                         border: 1px solid rgba(128, 128, 128, 0.2) !important;
                         border-radius: 12px !important;
                         
-                        /* Massive top padding pushes the swatches down so they start BELOW the solid button overlay! */
+                        /* Massive top padding pushes the swatches down so they start BELOW the button overlay! */
                         padding: 90px 20px 20px 20px !important; 
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
                     }
