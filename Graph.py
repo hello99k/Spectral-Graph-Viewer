@@ -260,41 +260,41 @@ elif st.session_state.app_state == 'graph':
                         -webkit-backdrop-filter: blur(16px) !important;
                         
                         border: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
-                        
                         border-radius: 12px !important;
                         padding: 20px !important;
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
-                        z-index: 9999999 !important; /* Maxed out to beat Plotly Legend */
+                        z-index: 9999999 !important;
                     }
                     
-                    /* STICKY CLOSE BUTTON HEADER (Solid "Table Cloth") */
+                    /* STICKY CLOSE BUTTON HEADER (100% Solid & Opaque) */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
                         position: sticky !important;
                         top: -20px !important;
                         z-index: 9999999 !important;
                         
-                        /* SOLID theme background to completely hide scrolling content */
+                        /* 100% Solid Background to completely block scrolling swatches */
                         background-color: var(--background-color) !important;
+                        opacity: 1.0 !important;
                         
                         /* Pulls the header out to cover the 20px padding of the parent window */
                         margin: -20px -20px 15px -20px !important;
                         padding: 20px 20px 15px 20px !important;
                         width: calc(100% + 40px) !important;
                         
-                        /* Clean bottom border to separate header from scrollable content */
-                        border-bottom: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
+                        /* Clean solid border */
+                        border-bottom: 2px solid var(--secondary-background-color) !important;
                     }
 
-                    /* OVERRIDE ONLY THE CLOSE BUTTON'S HOVER OPACITY */
+                    /* OVERRIDE BUTTON HOVER LOGIC */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button {
                         opacity: 1.0 !important;
-                        background-color: var(--background-color) !important;
-                        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
+                        background-color: var(--secondary-background-color) !important;
+                        border: 1px solid var(--secondary-background-color) !important;
+                        transition: none !important;
                     }
                     
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button:hover {
                         opacity: 1.0 !important;
-                        background-color: var(--secondary-background-color) !important;
                         border-color: var(--primary-color) !important;
                         color: var(--primary-color) !important;
                     }
