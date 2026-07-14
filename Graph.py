@@ -213,7 +213,14 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
-                # --- UPDATED VIEW OPTIONS MENU ---
+                # --- COLOR MENU BUTTON MOVED TO THE VERY TOP ---
+                if st.button("🎨 Open Color Menu", use_container_width=True):
+                    st.session_state.show_color_overlay = True
+                    st.rerun()
+                
+                st.divider()
+                
+                # --- VIEW OPTIONS MENU ---
                 st.markdown("#### View Options")
                 
                 auto_scale_y = st.toggle("Auto Scale Y-axis", value=False)
@@ -229,13 +236,6 @@ elif st.session_state.app_state == 'graph':
                 
                 active_data_cols = normalized_cols if plot_normalized else raw_cols
                 
-                st.markdown("#### Line Colors")
-                st.markdown("*Color settings have been moved to a floating overlay for easier access while scrolling.*")
-                if st.button("🎨 Open Color Menu", use_container_width=True):
-                    st.session_state.show_color_overlay = True
-                    st.rerun()
-                
-                st.divider()
                 st.markdown("#### High-Resolution Image Export")
                 st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
                 img_col1, img_col2, img_col3 = st.columns(3)
