@@ -7,7 +7,7 @@ import os
 import io
 
 # ==========================================
-# 1. INITIAL SETUP
+# 1. INITIAL SETUP & MEMORY
 # ==========================================
 st.set_page_config(page_title="Color Metamerism Viewer", layout="wide", initial_sidebar_state="collapsed")
 
@@ -17,6 +17,12 @@ if 'file_bytes' not in st.session_state:
     st.session_state.file_bytes = None
 if 'upload_key' not in st.session_state:
     st.session_state.upload_key = 0
+    
+# NEW: Memory systems for the floating overlay
+if 'show_color_overlay' not in st.session_state:
+    st.session_state.show_color_overlay = False
+if 'custom_colors' not in st.session_state:
+    st.session_state.custom_colors = {}
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -63,7 +69,7 @@ if font_medium_b64:
         font-weight: normal !important;
     }}
 
-    /* PROTECT STREAMLIT ICONS (Fixes the broken menu labels) */
+    /* PROTECT STREAMLIT ICONS */
     .material-symbols-rounded, 
     .material-symbols-outlined, 
     .material-icons, 
@@ -86,54 +92,22 @@ if st.session_state.app_state == 'splash':
 
     st.markdown(f"""
         <style>
-        /* Hide Headers */
         header, [data-testid="stHeader"] {{ display: none !important; }}
         [data-testid="stToolbar"] {{ display: none !important; }}
         .splash-container .block-container {{ padding: 0 !important; max-width: 100% !important; }}
         
-        /* Main Container */
         .splash-container {{
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
             {bg_css}
-            z-index: 1;
-            text-align: center;
-            pointer-events: none !important; 
+            z-index: 1; text-align: center; pointer-events: none !important; 
         }}
         
-        .title-wrapper {{
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 30px;
-            margin-bottom: 5px;
-        }}
+        .title-wrapper {{ position: relative; display: inline-flex; align-items: center; justify-content: center; margin-top: 30px; margin-bottom: 5px; }}
+        .splash-container .icon-wrapper {{ position: absolute; width: 147px; left: 995px; top: -0px; margin-top: 0px; }}
+        .splash-container .icon-item {{ position: absolute; width: 100%; opacity: 0; animation: cycle 4.2s infinite; }}
         
-        /* ICON CAROUSEL SETTINGS */
-        .splash-container .icon-wrapper {{
-            position: absolute;
-            width: 147px;
-            left: 995px;
-            top: -0px;
-            margin-top: 0px;
-        }}
-        
-        .splash-container .icon-item {{
-            position: absolute;
-            width: 100%;
-            opacity: 0;
-            animation: cycle 4.2s infinite;
-        }}
-        
-        /* Icon Timing (4.2s Total Cycle) */
         .splash-container .icon-item:nth-child(4) {{ animation-delay: 0.7s; }}
         .splash-container .icon-item:nth-child(1) {{ animation-delay: 1.4s; }}
         .splash-container .icon-item:nth-child(6) {{ animation-delay: 2.1s; }}
@@ -146,45 +120,24 @@ if st.session_state.app_state == 'splash':
             16.67%, 100% {{ opacity: 0; }}
         }}
 
-        /* Splash Text Styling */
         h1.splash-title, .stMarkdown h1.splash-title {{
-            font-size: 7.5rem !important; 
-            color: #FFFFFF; 
-            margin: 0; 
-            font-family: 'NeueHaas', sans-serif !important;
-            font-weight: normal !important; 
-            letter-spacing: 0px;
-            white-space: pre-wrap;
+            font-size: 7.5rem !important; color: #FFFFFF; margin: 0; 
+            font-family: 'NeueHaas', sans-serif !important; font-weight: normal !important; 
+            letter-spacing: 0px; white-space: pre-wrap;
         }}
         
         .splash-container .splash-subtitle {{
-            font-size: 1rem;
-            color: #FFFFFF;
-            margin-top: -180px !important;
-            margin-bottom: 450px;
-            font-weight: 300;
-            opacity: 0.70;
+            font-size: 1rem; color: #FFFFFF; margin-top: -180px !important; margin-bottom: 450px; font-weight: 300; opacity: 0.70;
         }}
 
-        /* Invisible File Hitbox */
         div:has(> [data-testid="stFileUploader"]) {{
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            z-index: 99999 !important;
-            opacity: 0.001 !important; 
+            position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+            z-index: 99999 !important; opacity: 0.001 !important; 
         }}
-        
         [data-testid="stFileUploader"], [data-testid="stFileUploadDropzone"] {{
-            position: absolute !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important; height: 100% !important;
-            z-index: 99999 !important; border: none !important;
-            padding: 0 !important; margin: 0 !important;
+            position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
+            z-index: 99999 !important; border: none !important; padding: 0 !important; margin: 0 !important;
         }}
-        
         [data-testid="stFileUploader"] label {{ display: none !important; }}
         [data-testid="stFileUploader"] * {{ cursor: pointer !important; width: 100% !important; height: 100% !important; }}
         </style>
@@ -202,11 +155,7 @@ if st.session_state.app_state == 'splash':
     </div>
     """, unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader(
-        "Upload", 
-        type=['xlsx', 'xls'], 
-        key=f"splash_uploader_{st.session_state.upload_key}"
-    )
+    uploaded_file = st.file_uploader("Upload", type=['xlsx', 'xls'], key=f"splash_uploader_{st.session_state.upload_key}")
     
     if uploaded_file is not None:
         st.session_state.file_bytes = uploaded_file.getvalue()
@@ -219,11 +168,7 @@ if st.session_state.app_state == 'splash':
 # ==========================================
 elif st.session_state.app_state == 'graph':
     
-    st.markdown("""
-        <style>
-        .block-container { padding-top: 3rem !important; }
-        </style>
-    """, unsafe_allow_html=True)
+    st.markdown("""<style>.block-container { padding-top: 3rem !important; }</style>""", unsafe_allow_html=True)
 
     col_back, col_space = st.columns([1, 5])
     with col_back:
@@ -242,7 +187,6 @@ elif st.session_state.app_state == 'graph':
 
     try:
         xls = pd.ExcelFile(io.BytesIO(st.session_state.file_bytes))
-        
         ref_sheet_name = next((sheet for sheet in xls.sheet_names if "reference lighting" in sheet.lower()), None)
         color_sheets = [sheet for sheet in xls.sheet_names if "reference lighting" not in sheet.lower()]
         
@@ -252,7 +196,7 @@ elif st.session_state.app_state == 'graph':
             selected_color = st.selectbox("Color Name:", color_sheets)
             df_color = pd.read_excel(xls, sheet_name=selected_color)
             
-            # --- DYNAMICALLY ORGANIZE COLUMNS ---
+            # Organize Columns
             normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
             raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
             
@@ -263,7 +207,7 @@ elif st.session_state.app_state == 'graph':
                 ref_x_col = df_ref.columns[0]
                 ref_options = df_ref.columns[1:].tolist()
 
-            # --- STREAMLIT TOGGLES ---
+            # Streamlit Overlays
             selected_refs = []
             if ref_options:
                 st.markdown("### Reference Lighting Overlays")
@@ -275,8 +219,6 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
-                # --- MOVED VIEW OPTIONS TO TOP ---
-                # We do this so the script knows which columns to build color pickers for below!
                 st.markdown("#### View Options")
                 plot_normalized = st.toggle("Plot Normalized Values", value=True)
                 truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
@@ -288,45 +230,93 @@ elif st.session_state.app_state == 'graph':
                 # Assign active columns based on the toggle state
                 active_data_cols = normalized_cols if plot_normalized else raw_cols
                 
+                # --- MOVED COLOR MENU LOGIC ---
                 st.markdown("#### Line Colors")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**Color Data Series**")
-                    data_color_picks = {}
-                    default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
-                    
-                    if active_data_cols:
-                        for i, col_name in enumerate(active_data_cols):
-                            default_hex = default_data_colors[i % len(default_data_colors)]
-                            data_color_picks[col_name] = st.color_picker(col_name, default_hex)
-                    else:
-                        st.info("No matching columns found in this tab.")
-                        
-                with col2:
-                    st.markdown("**Reference Lighting Series**")
-                    light_color_picks = {}
-                    default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
-                    if ref_options:
-                        for i, ref_name in enumerate(ref_options):
-                            default_hex = default_light_colors[i % len(default_light_colors)]
-                            light_color_picks[ref_name] = st.color_picker(ref_name, default_hex)
+                st.markdown("*Color settings have been moved to a floating overlay for easier access while scrolling.*")
+                if st.button("🎨 Open Color Menu", use_container_width=True):
+                    st.session_state.show_color_overlay = True
+                    st.rerun()
                 
                 st.divider()
                 st.markdown("#### High-Resolution Image Export")
                 st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
                 img_col1, img_col2, img_col3 = st.columns(3)
-                with img_col1:
-                    export_width = st.number_input("Width (px)", min_value=500, value=1920, step=100)
-                with img_col2:
-                    export_height = st.number_input("Height (px)", min_value=300, value=1080, step=100)
-                with img_col3:
-                    export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
+                with img_col1: export_width = st.number_input("Width (px)", min_value=500, value=1920, step=100)
+                with img_col2: export_height = st.number_input("Height (px)", min_value=300, value=1080, step=100)
+                with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
+
+            # ==========================================
+            # THE MAGIC CSS FLOATING WINDOW OVERLAY
+            # ==========================================
+            if st.session_state.show_color_overlay:
+                st.markdown("""
+                    <style>
+                    /* This insanely specific selector isolates the EXACT container we inject below 
+                       and forces it to break out of Streamlit's layout engine to float on screen! */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor):not(:has(div[data-testid="stVerticalBlock"])) {
+                        position: fixed !important;
+                        top: 80px !important;
+                        right: 40px !important;
+                        width: 320px !important;
+                        max-height: calc(100vh - 120px) !important; 
+                        overflow-y: auto !important;
+                        background-color: var(--secondary-background-color) !important;
+                        border: 1px solid var(--text-color) !important;
+                        border-radius: 12px !important;
+                        padding: 20px !important;
+                        box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
+                        z-index: 999999 !important;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                with st.container():
+                    st.markdown('<div class="floating-color-menu-anchor"></div>', unsafe_allow_html=True)
+                    
+                    if st.button("✖ Close Overlay", use_container_width=True):
+                        st.session_state.show_color_overlay = False
+                        st.rerun()
+                    
+                    st.markdown("### 🎨 Data Series")
+                    default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+                    if active_data_cols:
+                        for i, col_name in enumerate(active_data_cols):
+                            def_hex = default_data_colors[i % len(default_data_colors)]
+                            current_val = st.session_state.custom_colors.get(col_name, def_hex)
+                            new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
+                            st.session_state.custom_colors[col_name] = new_val
+                    else:
+                        st.info("No active columns to color.")
+                    
+                    st.divider()
+                    st.markdown("### 💡 Lighting Series")
+                    default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
+                    if ref_options:
+                        for i, ref_name in enumerate(ref_options):
+                            def_hex = default_light_colors[i % len(default_light_colors)]
+                            current_val = st.session_state.custom_colors.get(ref_name, def_hex)
+                            new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
+                            st.session_state.custom_colors[ref_name] = new_val
+
+            # ==========================================
+            # APPLY COLORS FROM MEMORY & RENDER GRAPH
+            # ==========================================
+            data_color_picks = {}
+            default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+            for i, col_name in enumerate(active_data_cols):
+                data_color_picks[col_name] = st.session_state.custom_colors.get(col_name, default_data_colors[i % len(default_data_colors)])
+                
+            light_color_picks = {}
+            default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
+            if ref_options:
+                for i, ref_name in enumerate(ref_options):
+                    light_color_picks[ref_name] = st.session_state.custom_colors.get(ref_name, default_light_colors[i % len(default_light_colors)])
+
 
             if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
-                
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- DATA SERIES GRAPHING ---
+                # --- DATA SERIES ---
                 for col_name in active_data_cols:
                     if truncate_color_bounds:
                         mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
@@ -336,16 +326,14 @@ elif st.session_state.app_state == 'graph':
                         plot_x = df_color['WL (nm)']
                         plot_y = df_color[col_name]
                     
-                    # Divide by 100 if we are plotting the raw percentage data
                     if not plot_normalized:
                         plot_y = plot_y / 100.0
                         
                     fig.add_trace(go.Scatter(
-                        x=plot_x, y=plot_y, 
-                        mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
+                        x=plot_x, y=plot_y, mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
                     ), secondary_y=False)
                 
-                # --- LIGHTING OVERLAYS GRAPHING ---
+                # --- LIGHTING OVERLAYS ---
                 if selected_refs and df_ref is not None:
                     for ref in selected_refs:
                         if truncate_lighting_bounds:
@@ -357,8 +345,7 @@ elif st.session_state.app_state == 'graph':
                             plot_y_ref = df_ref[ref]
                             
                         fig.add_trace(go.Scatter(
-                            x=plot_x_ref, y=plot_y_ref, 
-                            mode='lines', name=f"💡 {ref}",
+                            x=plot_x_ref, y=plot_y_ref, mode='lines', name=f"💡 {ref}",
                             line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
                         ), secondary_y=True)
                 
@@ -372,13 +359,11 @@ elif st.session_state.app_state == 'graph':
                     uirevision=selected_color
                 )
                 
-                # --- EXPLICIT X-AXIS RANGE OVERRIDE ---
                 if truncate_color_bounds or truncate_lighting_bounds:
                     x_min = df_color['WL (nm)'].min()
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
                 
-                # --- DYNAMIC Y-AXIS LABELS & OVERRIDES ---
                 left_y_title = "Relative Reflectance" if plot_normalized else "% Reflectance"
                 fig.update_yaxes(title_text=left_y_title, secondary_y=False)
                 
@@ -396,7 +381,6 @@ elif st.session_state.app_state == 'graph':
                         'scale': export_scale
                     }
                 }
-                
                 st.plotly_chart(fig, use_container_width=True, config=plot_config)
                 
             else:
