@@ -254,7 +254,6 @@ elif st.session_state.app_state == 'graph':
                         max-height: calc(100vh - 120px) !important; 
                         overflow-y: auto !important;
                         
-                        /* --- THEME-AWARE GLASSMORPHISM --- */
                         background-color: var(--secondary-background-color) !important; 
                         background-color: color-mix(in srgb, var(--background-color) 33%, transparent) !important;
                         backdrop-filter: blur(16px) !important;
@@ -268,25 +267,34 @@ elif st.session_state.app_state == 'graph':
                         z-index: 999999 !important;
                     }
                     
-                    /* STICKY CLOSE BUTTON HEADER (Smooth gradient fade) */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
+                    /* STICKY CLOSE BUTTON HEADER (Smooth gradient wall-to-wall) */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:has(button) {
                         position: sticky !important;
                         top: -20px !important;
                         z-index: 999999 !important;
                         
-                        /* Matches theme color and eases into transparency */
-                        background: linear-gradient(
-                            to bottom,
-                            var(--background-color) 0%,
-                            var(--background-color) 50%,
-                            color-mix(in srgb, var(--background-color) 80%, transparent) 75%,
-                            color-mix(in srgb, var(--background-color) 20%, transparent) 90%,
-                            transparent 100%
-                        ) !important;
+                        /* Pulls the gradient out to cover the 20px padding of the parent window */
+                        margin: -20px -20px 0px -20px !important;
+                        padding: 20px 20px 25px 20px !important;
+                        width: calc(100% + 40px) !important;
                         
-                        padding: 20px 0px 25px 0px !important;
-                        margin: -20px 0px -5px 0px !important;
-                        border-bottom: none !important;
+                        /* Clean fade to transparent */
+                        background: linear-gradient(to bottom, var(--background-color) 65%, transparent 100%) !important;
+                    }
+
+                    /* OVERRIDE STREAMLIT'S DEFAULT BUTTON HOVER OPACITY */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) button {
+                        opacity: 1.0 !important;
+                        background-color: var(--background-color) !important;
+                        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
+                    }
+                    
+                    /* Theme-Aware Brightness Swap */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) button:hover {
+                        opacity: 1.0 !important;
+                        background-color: var(--secondary-background-color) !important;
+                        border-color: var(--primary-color) !important;
+                        color: var(--primary-color) !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
@@ -304,7 +312,8 @@ elif st.session_state.app_state == 'graph':
                         dynamic_data_colors = []
                         for i in range(num_cols):
                             hue = i / num_cols
-                            r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.9)
+                            # Desaturated to 60% for smoother, cleaner pastels/midtomes
+                            r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
                             dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
                         for i, col_name in enumerate(active_data_cols):
@@ -334,7 +343,7 @@ elif st.session_state.app_state == 'graph':
                 dynamic_data_colors = []
                 for i in range(num_cols):
                     hue = i / num_cols
-                    r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.9)
+                    r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6) # Matched saturation drop here too!
                     dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
                 for i, col_name in enumerate(active_data_cols):
