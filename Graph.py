@@ -245,7 +245,7 @@ elif st.session_state.app_state == 'graph':
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* 1. LAYER 1: THE BUTTON LAYER (Solid, Extreme Blur) */
+                    /* 1. LAYER 1: THE BUTTON LAYER (50% Opacity + Blur) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
                         position: fixed !important;
                         top: 80px !important;
@@ -253,8 +253,8 @@ elif st.session_state.app_state == 'graph':
                         width: 320px !important;
                         z-index: 9999999 !important; 
                         
-                        /* Extreme Blur + High Opacity for "Frosted Glass" */
-                        background-color: color-mix(in srgb, var(--background-color) 70%, transparent) !important; 
+                        /* 50% opacity theme-aware background */
+                        background-color: color-mix(in srgb, var(--background-color) 50%, transparent) !important; 
                         backdrop-filter: blur(30px) !important;
                         -webkit-backdrop-filter: blur(30px) !important;
                         
@@ -270,26 +270,23 @@ elif st.session_state.app_state == 'graph':
                         display: none !important;
                     }
 
-                    /* 2. LAYER 2: THE MENU LAYER (Glassmorphic, Bottom) */
+                    /* 2. LAYER 2: THE MENU LAYER (Glassmorphic) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
                         position: fixed !important;
-                        top: 80px !important;
+                        top: 140px !important; /* Offset by the height of the button block */
                         right: 40px !important;
                         width: 320px !important;
-                        max-height: calc(100vh - 120px) !important; 
+                        max-height: calc(100vh - 200px) !important; 
                         overflow-y: auto !important;
-                        z-index: 9999998 !important; 
+                        z-index: 99999 !important; /* Lower than the button */
                         
-                        background-color: var(--secondary-background-color) !important; 
-                        background-color: color-mix(in srgb, var(--background-color) 40%, transparent) !important;
+                        background-color: color-mix(in srgb, var(--secondary-background-color) 80%, transparent) !important;
                         backdrop-filter: blur(16px) !important;
                         -webkit-backdrop-filter: blur(16px) !important;
                         
                         border: 1px solid rgba(128, 128, 128, 0.2) !important;
-                        border-radius: 12px !important;
-                        
-                        /* Massive top padding pushes the swatches down so they start BELOW the button overlay! */
-                        padding: 90px 20px 20px 20px !important; 
+                        border-radius: 0px 0px 12px 12px !important;
+                        padding: 20px !important; 
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
                     }
                     
