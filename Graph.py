@@ -255,13 +255,11 @@ elif st.session_state.app_state == 'graph':
                         overflow-y: auto !important;
                         
                         /* --- THEME-AWARE GLASSMORPHISM --- */
-                        /* Uses color-mix to seamlessly blend Streamlit's native background variable with transparency */
-                        background-color: var(--secondary-background-color) !important; /* Safe Fallback */
+                        background-color: var(--secondary-background-color) !important; 
                         background-color: color-mix(in srgb, var(--background-color) 33%, transparent) !important;
                         backdrop-filter: blur(16px) !important;
                         -webkit-backdrop-filter: blur(16px) !important;
                         
-                        /* Matches the border to the theme text color with low opacity */
                         border: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
                         
                         border-radius: 12px !important;
@@ -270,21 +268,25 @@ elif st.session_state.app_state == 'graph':
                         z-index: 999999 !important;
                     }
                     
-                    /* STICKY CLOSE BUTTON HEADER */
+                    /* STICKY CLOSE BUTTON HEADER (Smooth gradient fade) */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
                         position: sticky !important;
                         top: -20px !important;
                         z-index: 999999 !important;
                         
-                        /* Slightly heavier opacity for the header so scrolling colors don't bleed through heavily */
-                        background-color: var(--background-color) !important; /* Safe Fallback */
-                        background-color: color-mix(in srgb, var(--background-color) 85%, transparent) !important;
-                        backdrop-filter: blur(16px) !important;
-                        -webkit-backdrop-filter: blur(16px) !important;
+                        /* Matches theme color and eases into transparency */
+                        background: linear-gradient(
+                            to bottom,
+                            var(--background-color) 0%,
+                            var(--background-color) 50%,
+                            color-mix(in srgb, var(--background-color) 80%, transparent) 75%,
+                            color-mix(in srgb, var(--background-color) 20%, transparent) 90%,
+                            transparent 100%
+                        ) !important;
                         
-                        padding: 20px 0px 15px 0px !important;
-                        margin: -20px 0px 10px 0px !important;
-                        border-bottom: 1px solid color-mix(in srgb, var(--text-color) 10%, transparent) !important;
+                        padding: 20px 0px 25px 0px !important;
+                        margin: -20px 0px -5px 0px !important;
+                        border-bottom: none !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
