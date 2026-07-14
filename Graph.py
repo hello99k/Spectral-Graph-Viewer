@@ -18,7 +18,6 @@ if 'file_bytes' not in st.session_state:
 if 'upload_key' not in st.session_state:
     st.session_state.upload_key = 0
     
-# NEW: Memory systems for the floating overlay
 if 'show_color_overlay' not in st.session_state:
     st.session_state.show_color_overlay = False
 if 'custom_colors' not in st.session_state:
@@ -59,7 +58,6 @@ if font_medium_b64:
         font-style: normal;
     }}
 
-    /* Apply Medium font to absolutely everything */
     html, body, p, span, div, h1, h2, h3, h4, h5, h6,
     .stApp, .stButton, .stSelectbox, .stMarkdown, 
     .stExpander, .stSlider, .stTextInput, .stMultiSelect,
@@ -69,7 +67,6 @@ if font_medium_b64:
         font-weight: normal !important;
     }}
 
-    /* PROTECT STREAMLIT ICONS */
     .material-symbols-rounded, 
     .material-symbols-outlined, 
     .material-icons, 
@@ -97,8 +94,7 @@ if st.session_state.app_state == 'splash':
         .splash-container .block-container {{ padding: 0 !important; max-width: 100% !important; }}
         
         .splash-container {{
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             {bg_css}
             z-index: 1; text-align: center; pointer-events: none !important; 
@@ -196,7 +192,6 @@ elif st.session_state.app_state == 'graph':
             selected_color = st.selectbox("Color Name:", color_sheets)
             df_color = pd.read_excel(xls, sheet_name=selected_color)
             
-            # Organize Columns
             normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
             raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
             
@@ -207,7 +202,6 @@ elif st.session_state.app_state == 'graph':
                 ref_x_col = df_ref.columns[0]
                 ref_options = df_ref.columns[1:].tolist()
 
-            # Streamlit Overlays
             selected_refs = []
             if ref_options:
                 st.markdown("### Reference Lighting Overlays")
@@ -219,18 +213,22 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
+                # --- UPDATED VIEW OPTIONS MENU ---
                 st.markdown("#### View Options")
-                plot_normalized = st.toggle("Plot Normalized Values", value=True)
+                
+                auto_scale_y = st.toggle("Auto Scale Y-axis", value=False)
+                
+                # Contingency check: Only enable this toggle if normalized columns exist
+                has_normalized = len(normalized_cols) > 0
+                plot_normalized = st.toggle("Plot Normalized Values", value=False, disabled=not has_normalized)
+                
                 truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
                 truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
-                auto_scale_y = st.toggle("Auto Scale Y-axis", value=True)
                 
                 st.divider()
                 
-                # Assign active columns based on the toggle state
                 active_data_cols = normalized_cols if plot_normalized else raw_cols
                 
-                # --- MOVED COLOR MENU LOGIC ---
                 st.markdown("#### Line Colors")
                 st.markdown("*Color settings have been moved to a floating overlay for easier access while scrolling.*")
                 if st.button("🎨 Open Color Menu", use_container_width=True):
@@ -251,8 +249,6 @@ elif st.session_state.app_state == 'graph':
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* This insanely specific selector isolates the EXACT container we inject below 
-                       and forces it to break out of Streamlit's layout engine to float on screen! */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor):not(:has(div[data-testid="stVerticalBlock"])) {
                         position: fixed !important;
                         top: 80px !important;
@@ -260,8 +256,13 @@ elif st.session_state.app_state == 'graph':
                         width: 320px !important;
                         max-height: calc(100vh - 120px) !important; 
                         overflow-y: auto !important;
-                        background-color: var(--secondary-background-color) !important;
-                        border: 1px solid var(--text-color) !important;
+                        
+                        /* --- GLASSMORPHISM EFFECTS --- */
+                        background-color: rgba(26, 26, 26, 0.33) !important;
+                        backdrop-filter: blur(16px) !important;
+                        -webkit-backdrop-filter: blur(16px) !important;
+                        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                        
                         border-radius: 12px !important;
                         padding: 20px !important;
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
@@ -299,7 +300,7 @@ elif st.session_state.app_state == 'graph':
                             st.session_state.custom_colors[ref_name] = new_val
 
             # ==========================================
-            # APPLY COLORS FROM MEMORY & RENDER GRAPH
+            # RENDER GRAPH
             # ==========================================
             data_color_picks = {}
             default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
