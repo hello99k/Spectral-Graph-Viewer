@@ -369,12 +369,12 @@ elif st.session_state.app_state == 'graph':
                     fig.update_xaxes(range=[x_min, x_max])
                 
                 # --- EXPLICIT Y-AXIS RANGE OVERRIDE ---
-                fig.update_yaxes(title_text="Normalized Value (Color Data)", secondary_y=False)
+                fig.update_yaxes(title_text="Relative Reflectance", secondary_y=False)
                 
                 if not auto_scale_y:
                     fig.update_yaxes(range=[0, 1], secondary_y=False)
                     
-                fig.update_yaxes(title_text="Relative Power (Ref. Lighting)", secondary_y=True, showgrid=False)
+                fig.update_yaxes(title_text="Relative Transmittance", secondary_y=True, showgrid=False)
                 
                 plot_config = {
                     'toImageButtonOptions': {
