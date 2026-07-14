@@ -261,31 +261,41 @@ elif st.session_state.app_state == 'graph':
                         
                         border: 1px solid rgba(128, 128, 128, 0.2) !important;
                         border-radius: 12px !important;
-                        padding: 20px !important;
+                        
+                        /* Removes top padding so the table cloth header sits flush */
+                        padding: 0px 20px 20px 20px !important; 
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
                         z-index: 9999999 !important;
                     }
                     
-                    /* 2. STICKY SOLID TABLE CLOTH */
+                    /* 2. KILL THE INVISIBLE ANCHOR GAP */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(1) {
+                        height: 0px !important;
+                        min-height: 0px !important;
+                        margin: 0px !important;
+                        padding: 0px !important;
+                    }
+                    
+                    /* 3. STICKY SOLID TABLE CLOTH */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
                         position: sticky !important;
-                        top: -20px !important;
+                        top: 0px !important;
                         z-index: 9999999 !important;
                         
-                        /* 100% Solid Background to completely block scrolling swatches */
+                        /* 100% Solid Background to block scrolling swatches */
                         background-color: var(--background-color) !important;
                         
-                        /* Pulls the header out to cover the 20px padding of the parent window */
-                        margin: -20px -20px 15px -20px !important;
+                        /* Perfectly matches window borders to prevent sharp corners clipping out */
+                        border-top-left-radius: 12px !important;
+                        border-top-right-radius: 12px !important;
+                        
+                        /* Stretches to walls, auto-centers button without clashing with scrollbar */
+                        margin: 0px -20px 15px -20px !important;
                         padding: 20px 20px 15px 20px !important;
-                        width: calc(100% + 40px) !important;
                         
                         /* Clean solid border line */
                         border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
                     }
-                    
-                    /* Note: All custom button CSS has been completely removed! 
-                       Streamlit will now render its native, fully functional button. */
                     </style>
                 """, unsafe_allow_html=True)
                 
