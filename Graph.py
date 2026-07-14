@@ -240,62 +240,81 @@ elif st.session_state.app_state == 'graph':
                 with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
             # ==========================================
-            # THE MAGIC CSS FLOATING WINDOW OVERLAY
+            # TWO-LAYER FLOATING OVERLAY ARCHITECTURE
             # ==========================================
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* 1. MAIN FLOATING WINDOW */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor):not(:has(div[data-testid="stVerticalBlock"])) {
+                    /* ----------------------------------------------------
+                       LAYER 1: THE BUTTON LAYER (Solid, Top)
+                       ---------------------------------------------------- */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
                         position: fixed !important;
                         top: 80px !important;
                         right: 40px !important;
                         width: 320px !important;
+                        z-index: 9999999 !important; /* Highest layer, sits on top */
+                        
+                        /* 100% Solid Theme Background */
+                        background-color: var(--background-color) !important; 
+                        
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important;
+                        border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important; /* Distinct visual separator */
+                        
+                        /* Rounded top, flat bottom to connect with menu */
+                        border-radius: 12px 12px 0px 0px !important; 
+                        
+                        padding: 15px 20px 15px 20px !important;
+                        box-shadow: 0px -5px 20px rgba(0,0,0,0.2) !important;
+                    }
+                    
+                    /* Hide invisible anchor gap */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) > div.element-container:nth-child(1) {
+                        display: none !important;
+                    }
+
+                    /* ----------------------------------------------------
+                       LAYER 2: THE MENU LAYER (Glassmorphic, Bottom)
+                       ---------------------------------------------------- */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
+                        position: fixed !important;
+                        top: 80px !important; /* Starts at the exact same height as the button block */
+                        right: 40px !important;
+                        width: 320px !important;
                         max-height: calc(100vh - 120px) !important; 
                         overflow-y: auto !important;
+                        z-index: 9999998 !important; /* Lower layer, sits underneath the button */
                         
                         background-color: var(--secondary-background-color) !important; 
-                        background-color: color-mix(in srgb, var(--background-color) 33%, transparent) !important;
+                        background-color: color-mix(in srgb, var(--background-color) 40%, transparent) !important;
                         backdrop-filter: blur(16px) !important;
                         -webkit-backdrop-filter: blur(16px) !important;
                         
                         border: 1px solid rgba(128, 128, 128, 0.2) !important;
                         border-radius: 12px !important;
-                        padding: 20px !important;
+                        
+                        /* Massive top padding pushes the swatches down so they start BELOW the solid button overlay! */
+                        padding: 90px 20px 20px 20px !important; 
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
-                        z-index: 9999999 !important;
                     }
                     
-                    /* 2. STICKY SOLID TABLE CLOTH */
-                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
-                        position: sticky !important;
-                        top: -20px !important;
-                        z-index: 9999999 !important;
-                        
-                        /* 100% Solid Background to completely block scrolling swatches */
-                        background-color: var(--background-color) !important;
-                        
-                        /* Pulls the header out to cover the 20px padding of the parent window */
-                        margin: -20px -20px 15px -20px !important;
-                        padding: 20px 20px 15px 20px !important;
-                        width: calc(100% + 40px) !important;
-                        
-                        /* Clean solid border line */
-                        border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
+                    /* Hide invisible anchor gap */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) {
+                        display: none !important;
                     }
-                    
-                    /* Note: All custom button CSS has been completely removed! 
-                       Streamlit will now render its native, fully functional button. */
                     </style>
                 """, unsafe_allow_html=True)
                 
+                # --- CONTAINER 1: THE BUTTON ---
                 with st.container():
-                    st.markdown('<div class="floating-color-menu-anchor"></div>', unsafe_allow_html=True)
-                    
+                    st.markdown('<div class="floating-button-anchor"></div>', unsafe_allow_html=True)
                     if st.button("✖ Close Overlay", use_container_width=True):
                         st.session_state.show_color_overlay = False
                         st.rerun()
-                    
+                
+                # --- CONTAINER 2: THE COLOR MENU ---
+                with st.container():
+                    st.markdown('<div class="floating-menu-anchor"></div>', unsafe_allow_html=True)
                     st.markdown("### 📊")
                     if active_data_cols:
                         num_cols = len(active_data_cols)
