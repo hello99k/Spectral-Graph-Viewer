@@ -298,14 +298,15 @@ elif st.session_state.app_state == 'graph':
                 
                 st.divider()
                 
-                # --- SPLIT TRUNCATE TOGGLES ---
+                # --- VIEW OPTIONS WITH NEW Y-AXIS TOGGLE ---
                 st.markdown("#### View Options")
                 truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
                 truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
+                auto_scale_y = st.toggle("Auto Scale Y-axis", value=True)
                 
                 st.divider()
                 
-                st.markdown("#### Image Export")
+                st.markdown("#### High-Resolution Image Export")
                 st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
                 img_col1, img_col2, img_col3 = st.columns(3)
                 with img_col1:
@@ -361,15 +362,19 @@ elif st.session_state.app_state == 'graph':
                     uirevision=selected_color
                 )
                 
-                # --- EXPLICIT AXIS RANGE OVERRIDE ---
-                # Locks the X-axis to the original data bounds so it doesn't auto-zoom when truncated
+                # --- EXPLICIT X-AXIS RANGE OVERRIDE ---
                 if truncate_color_bounds or truncate_lighting_bounds:
                     x_min = df_color['WL (nm)'].min()
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
                 
-                fig.update_yaxes(title_text="Relative Reflectance", secondary_y=False)
-                fig.update_yaxes(title_text="Relative Transmittance", secondary_y=True, showgrid=False)
+                # --- EXPLICIT Y-AXIS RANGE OVERRIDE ---
+                fig.update_yaxes(title_text="Normalized Value (Color Data)", secondary_y=False)
+                
+                if not auto_scale_y:
+                    fig.update_yaxes(range=[0, 1], secondary_y=False)
+                    
+                fig.update_yaxes(title_text="Relative Power (Ref. Lighting)", secondary_y=True, showgrid=False)
                 
                 plot_config = {
                     'toImageButtonOptions': {
@@ -388,4 +393,3 @@ elif st.session_state.app_state == 'graph':
 
     except Exception as e:
         st.error(f"An error occurred while reading the file: {e}")
-
