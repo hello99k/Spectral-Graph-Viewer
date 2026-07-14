@@ -5,6 +5,7 @@ from plotly.subplots import make_subplots
 import base64
 import os
 import io
+import colorsys
 
 # ==========================================
 # 1. INITIAL SETUP & MEMORY
@@ -213,19 +214,14 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
-                # --- COLOR MENU BUTTON MOVED TO THE VERY TOP ---
                 if st.button("🎨 Open Color Menu", use_container_width=True):
                     st.session_state.show_color_overlay = True
                     st.rerun()
                 
                 st.divider()
-                
-                # --- VIEW OPTIONS MENU ---
                 st.markdown("#### View Options")
                 
                 auto_scale_y = st.toggle("Auto Scale Y-axis", value=False)
-                
-                # Contingency check: Only enable this toggle if normalized columns exist
                 has_normalized = len(normalized_cols) > 0
                 plot_normalized = st.toggle("Plot Normalized Values", value=False, disabled=not has_normalized)
                 
@@ -249,6 +245,7 @@ elif st.session_state.app_state == 'graph':
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
+                    /* MAIN FLOATING WINDOW */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor):not(:has(div[data-testid="stVerticalBlock"])) {
                         position: fixed !important;
                         top: 80px !important;
@@ -257,16 +254,37 @@ elif st.session_state.app_state == 'graph':
                         max-height: calc(100vh - 120px) !important; 
                         overflow-y: auto !important;
                         
-                        /* --- GLASSMORPHISM EFFECTS --- */
-                        background-color: rgba(26, 26, 26, 0.33) !important;
+                        /* --- THEME-AWARE GLASSMORPHISM --- */
+                        /* Uses color-mix to seamlessly blend Streamlit's native background variable with transparency */
+                        background-color: var(--secondary-background-color) !important; /* Safe Fallback */
+                        background-color: color-mix(in srgb, var(--background-color) 33%, transparent) !important;
                         backdrop-filter: blur(16px) !important;
                         -webkit-backdrop-filter: blur(16px) !important;
-                        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                        
+                        /* Matches the border to the theme text color with low opacity */
+                        border: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
                         
                         border-radius: 12px !important;
                         padding: 20px !important;
-                        box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
+                        box-shadow: 0px 10px 40px rgba(0,0,0,0.3) !important;
                         z-index: 999999 !important;
+                    }
+                    
+                    /* STICKY CLOSE BUTTON HEADER */
+                    div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
+                        position: sticky !important;
+                        top: -20px !important;
+                        z-index: 999999 !important;
+                        
+                        /* Slightly heavier opacity for the header so scrolling colors don't bleed through heavily */
+                        background-color: var(--background-color) !important; /* Safe Fallback */
+                        background-color: color-mix(in srgb, var(--background-color) 85%, transparent) !important;
+                        backdrop-filter: blur(16px) !important;
+                        -webkit-backdrop-filter: blur(16px) !important;
+                        
+                        padding: 20px 0px 15px 0px !important;
+                        margin: -20px 0px 10px 0px !important;
+                        border-bottom: 1px solid color-mix(in srgb, var(--text-color) 10%, transparent) !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
@@ -278,11 +296,17 @@ elif st.session_state.app_state == 'graph':
                         st.session_state.show_color_overlay = False
                         st.rerun()
                     
-                    st.markdown("### 🎨 Data Series")
-                    default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+                    st.markdown("### 📊")
                     if active_data_cols:
+                        num_cols = len(active_data_cols)
+                        dynamic_data_colors = []
+                        for i in range(num_cols):
+                            hue = i / num_cols
+                            r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.9)
+                            dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
+
                         for i, col_name in enumerate(active_data_cols):
-                            def_hex = default_data_colors[i % len(default_data_colors)]
+                            def_hex = dynamic_data_colors[i]
                             current_val = st.session_state.custom_colors.get(col_name, def_hex)
                             new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
                             st.session_state.custom_colors[col_name] = new_val
@@ -290,7 +314,7 @@ elif st.session_state.app_state == 'graph':
                         st.info("No active columns to color.")
                     
                     st.divider()
-                    st.markdown("### 💡 Lighting Series")
+                    st.markdown("### 💡")
                     default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
                     if ref_options:
                         for i, ref_name in enumerate(ref_options):
@@ -303,9 +327,16 @@ elif st.session_state.app_state == 'graph':
             # RENDER GRAPH
             # ==========================================
             data_color_picks = {}
-            default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
-            for i, col_name in enumerate(active_data_cols):
-                data_color_picks[col_name] = st.session_state.custom_colors.get(col_name, default_data_colors[i % len(default_data_colors)])
+            if active_data_cols:
+                num_cols = len(active_data_cols)
+                dynamic_data_colors = []
+                for i in range(num_cols):
+                    hue = i / num_cols
+                    r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.9)
+                    dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
+
+                for i, col_name in enumerate(active_data_cols):
+                    data_color_picks[col_name] = st.session_state.custom_colors.get(col_name, dynamic_data_colors[i])
                 
             light_color_picks = {}
             default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
