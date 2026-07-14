@@ -252,8 +252,9 @@ elif st.session_state.app_state == 'graph':
             selected_color = st.selectbox("Color Name:", color_sheets)
             df_color = pd.read_excel(xls, sheet_name=selected_color)
             
-            # --- DYNAMICALLY FIND NORMALIZED COLUMNS ---
+            # --- DYNAMICALLY ORGANIZE COLUMNS ---
             normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
+            raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
             
             df_ref = None
             ref_options = []
@@ -273,6 +274,20 @@ elif st.session_state.app_state == 'graph':
                             selected_refs.append(ref_name)
             
             with st.expander("⚙️ Graph Settings"):
+                
+                # --- MOVED VIEW OPTIONS TO TOP ---
+                # We do this so the script knows which columns to build color pickers for below!
+                st.markdown("#### View Options")
+                plot_normalized = st.toggle("Plot Normalized Values", value=True)
+                truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
+                truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
+                auto_scale_y = st.toggle("Auto Scale Y-axis", value=True)
+                
+                st.divider()
+                
+                # Assign active columns based on the toggle state
+                active_data_cols = normalized_cols if plot_normalized else raw_cols
+                
                 st.markdown("#### Line Colors")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -280,12 +295,12 @@ elif st.session_state.app_state == 'graph':
                     data_color_picks = {}
                     default_data_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
                     
-                    if normalized_cols:
-                        for i, col_name in enumerate(normalized_cols):
+                    if active_data_cols:
+                        for i, col_name in enumerate(active_data_cols):
                             default_hex = default_data_colors[i % len(default_data_colors)]
                             data_color_picks[col_name] = st.color_picker(col_name, default_hex)
                     else:
-                        st.info("No 'Normalized' columns found to configure.")
+                        st.info("No matching columns found in this tab.")
                         
                 with col2:
                     st.markdown("**Reference Lighting Series**")
@@ -297,15 +312,6 @@ elif st.session_state.app_state == 'graph':
                             light_color_picks[ref_name] = st.color_picker(ref_name, default_hex)
                 
                 st.divider()
-                
-                # --- VIEW OPTIONS WITH NEW Y-AXIS TOGGLE ---
-                st.markdown("#### View Options")
-                truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
-                truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
-                auto_scale_y = st.toggle("Auto Scale Y-axis", value=True)
-                
-                st.divider()
-                
                 st.markdown("#### High-Resolution Image Export")
                 st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
                 img_col1, img_col2, img_col3 = st.columns(3)
@@ -316,12 +322,12 @@ elif st.session_state.app_state == 'graph':
                 with img_col3:
                     export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
-            if 'WL (nm)' in df_color.columns and len(normalized_cols) > 0:
+            if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
                 
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- DATA SERIES GRAPHING WITH INDEPENDENT TRUNCATION LOGIC ---
-                for col_name in normalized_cols:
+                # --- DATA SERIES GRAPHING ---
+                for col_name in active_data_cols:
                     if truncate_color_bounds:
                         mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
                         plot_x = df_color.loc[mask, 'WL (nm)']
@@ -329,13 +335,17 @@ elif st.session_state.app_state == 'graph':
                     else:
                         plot_x = df_color['WL (nm)']
                         plot_y = df_color[col_name]
+                    
+                    # Divide by 100 if we are plotting the raw percentage data
+                    if not plot_normalized:
+                        plot_y = plot_y / 100.0
                         
                     fig.add_trace(go.Scatter(
                         x=plot_x, y=plot_y, 
                         mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
                     ), secondary_y=False)
                 
-                # --- LIGHTING OVERLAYS GRAPHING WITH INDEPENDENT TRUNCATION LOGIC ---
+                # --- LIGHTING OVERLAYS GRAPHING ---
                 if selected_refs and df_ref is not None:
                     for ref in selected_refs:
                         if truncate_lighting_bounds:
@@ -353,7 +363,7 @@ elif st.session_state.app_state == 'graph':
                         ), secondary_y=True)
                 
                 fig.update_layout(
-                    title=f"Normalized Reflectance Data: {selected_color}",
+                    title=f"Reflectance Data: {selected_color}",
                     xaxis_title="Wavelength (nm)",
                     hovermode="x unified",
                     template="plotly_white",
@@ -368,8 +378,9 @@ elif st.session_state.app_state == 'graph':
                     x_max = df_color['WL (nm)'].max()
                     fig.update_xaxes(range=[x_min, x_max])
                 
-                # --- EXPLICIT Y-AXIS RANGE OVERRIDE ---
-                fig.update_yaxes(title_text="Relative Reflectance", secondary_y=False)
+                # --- DYNAMIC Y-AXIS LABELS & OVERRIDES ---
+                left_y_title = "Relative Reflectance" if plot_normalized else "% Reflectance"
+                fig.update_yaxes(title_text=left_y_title, secondary_y=False)
                 
                 if not auto_scale_y:
                     fig.update_yaxes(range=[0, 1], secondary_y=False)
@@ -389,7 +400,7 @@ elif st.session_state.app_state == 'graph':
                 st.plotly_chart(fig, use_container_width=True, config=plot_config)
                 
             else:
-                st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or 'Normalized' columns.")
+                st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or active data columns.")
 
     except Exception as e:
         st.error(f"An error occurred while reading the file: {e}")
