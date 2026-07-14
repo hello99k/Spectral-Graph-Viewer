@@ -245,7 +245,7 @@ elif st.session_state.app_state == 'graph':
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* MAIN FLOATING WINDOW */
+                    /* 1. MAIN FLOATING WINDOW */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor):not(:has(div[data-testid="stVerticalBlock"])) {
                         position: fixed !important;
                         top: 80px !important;
@@ -266,7 +266,7 @@ elif st.session_state.app_state == 'graph':
                         z-index: 9999999 !important;
                     }
                     
-                    /* STICKY CLOSE BUTTON HEADER (100% Solid & Opaque) */
+                    /* 2. STICKY SOLID TABLE CLOTH */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) {
                         position: sticky !important;
                         top: -20px !important;
@@ -274,27 +274,33 @@ elif st.session_state.app_state == 'graph':
                         
                         /* 100% Solid Background to completely block scrolling swatches */
                         background-color: var(--background-color) !important;
-                        opacity: 1.0 !important;
                         
                         /* Pulls the header out to cover the 20px padding of the parent window */
                         margin: -20px -20px 15px -20px !important;
                         padding: 20px 20px 15px 20px !important;
                         width: calc(100% + 40px) !important;
                         
-                        /* Clean solid border */
-                        border-bottom: 2px solid var(--secondary-background-color) !important;
+                        /* Clean solid border line */
+                        border-bottom: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent) !important;
                     }
 
-                    /* OVERRIDE BUTTON HOVER LOGIC */
+                    /* 3. RESTORE THE BUTTON BOX */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button {
                         opacity: 1.0 !important;
                         background-color: var(--secondary-background-color) !important;
-                        border: 1px solid var(--secondary-background-color) !important;
-                        transition: none !important;
+                        border: 1px solid color-mix(in srgb, var(--text-color) 20%, transparent) !important;
+                        border-radius: 8px !important;
+                        color: var(--text-color) !important;
+                        transition: all 0.2s ease-in-out !important;
                     }
                     
+                    /* 4. THEME-AWARE HOVER EFFECT */
                     div[data-testid="stVerticalBlock"]:has(.floating-color-menu-anchor) > div.element-container:nth-of-type(2) button:hover {
                         opacity: 1.0 !important;
+                        
+                        /* Mixes the background with 10% text color (Lighter in Dark mode, Darker in Light mode) */
+                        background-color: color-mix(in srgb, var(--secondary-background-color) 90%, var(--text-color)) !important;
+                        
                         border-color: var(--primary-color) !important;
                         color: var(--primary-color) !important;
                     }
@@ -314,7 +320,6 @@ elif st.session_state.app_state == 'graph':
                         dynamic_data_colors = []
                         for i in range(num_cols):
                             hue = i / num_cols
-                            # Desaturated to 60% for smoother, cleaner pastels/midtomes
                             r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
                             dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
