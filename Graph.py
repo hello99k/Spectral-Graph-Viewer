@@ -188,7 +188,16 @@ if st.session_state.app_state == 'splash':
 # ==========================================
 elif st.session_state.app_state == 'graph':
     
-    st.markdown("""<style>.block-container { padding-top: 3rem !important; }</style>""", unsafe_allow_html=True)
+    # Adjusted block-container padding to shrink the outer right gutter
+    st.markdown("""
+        <style>
+        .block-container { 
+            padding-top: 3rem !important; 
+            padding-left: 2rem !important; 
+            padding-right: 1.5rem !important; 
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     col_back, col_space = st.columns([1, 5])
     with col_back:
@@ -291,7 +300,6 @@ elif st.session_state.app_state == 'graph':
                     }
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) { display: none !important; }
 
-                    /* Horizontally align checkboxes with color pickers inside the floating menu */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) div[data-testid="stHorizontalBlock"] {
                         align-items: center !important;
                     }
@@ -355,23 +363,25 @@ elif st.session_state.app_state == 'graph':
             
             st.markdown("""
                 <style>
+                /* Pulls the entire legend block leftward, closing the inner gutter with the graph */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .legend-wrapper) {
+                    margin-left: -40px !important;
+                }
+
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) {
                     position: relative !important;
                     height: 24px !important;
                     margin-bottom: 2px !important;
                     gap: 0 !important;
                 }
-                /* Visual Graphic Layer */
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) > div.element-container:nth-child(2) {
                     position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
                     z-index: 1; pointer-events: none;
                 }
-                /* Invisible Button Layer */
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) > div.element-container:nth-child(3) {
                     position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
                     z-index: 2;
                 }
-                /* Destroy the button styling so it acts as a fully invisible hit-box spanning the entire container */
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) button {
                     opacity: 0 !important; width: 100% !important; height: 100% !important;
                     padding: 0 !important; cursor: pointer !important; border: none !important; background: transparent !important; box-shadow: none !important;
@@ -480,40 +490,42 @@ elif st.session_state.app_state == 'graph':
                 
                 # --- PURE HTML COMPACT SIDE LEGEND ---
                 with col_leg:
-                    st.markdown("<div style='margin-top: 60px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Data Series</div>", unsafe_allow_html=True)
-                    
-                    for col_name in active_data_cols:
-                        vis = st.session_state.trace_vis.get(col_name, True)
-                        color = data_color_picks[col_name]
-                        paired_col = paired_map.get(col_name)
+                    with st.container():
+                        # Wrapper class specifically targets and shifts this entire column block leftward
+                        st.markdown('<div class="legend-wrapper"></div>', unsafe_allow_html=True)
+                        st.markdown("<div style='margin-top: 60px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Colors</div>", unsafe_allow_html=True)
                         
-                        item_opacity = "1.0" if vis else "0.4"
-                        
-                        html_visual = f"""
-                        <div class="custom-leg-item" style="opacity: {item_opacity};">
-                            <div class="leg-line" style="background-color: {color};"></div>
-                            <div class="leg-text">{col_name}</div>
-                        </div>
-                        """
-                        
-                        with st.container():
-                            st.markdown('<div class="leg-anchor"></div>', unsafe_allow_html=True)
-                            st.markdown(html_visual, unsafe_allow_html=True)
-                            # use_container_width=True forces the button to span the exact width of the text!
-                            st.button(" ", key=f"leg_btn_{col_name}", use_container_width=True, on_click=toggle_vis_paired, args=(col_name, paired_col))
-                    
-                    if selected_refs:
-                        st.markdown("<div style='margin-top: 30px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Lighting Overlays</div>", unsafe_allow_html=True)
-                        for ref_name in selected_refs:
-                            color = light_color_picks[ref_name]
+                        for col_name in active_data_cols:
+                            vis = st.session_state.trace_vis.get(col_name, True)
+                            color = data_color_picks[col_name]
+                            paired_col = paired_map.get(col_name)
+                            
+                            item_opacity = "1.0" if vis else "0.4"
                             
                             html_visual = f"""
-                            <div class="custom-leg-item" style="opacity: 1.0; cursor: default;">
-                                <div class="leg-line-dash" style="border-color: {color};"></div>
-                                <div class="leg-text">{ref_name}</div>
+                            <div class="custom-leg-item" style="opacity: {item_opacity};">
+                                <div class="leg-line" style="background-color: {color};"></div>
+                                <div class="leg-text">{col_name}</div>
                             </div>
                             """
-                            st.markdown(html_visual, unsafe_allow_html=True)
+                            
+                            with st.container():
+                                st.markdown('<div class="leg-anchor"></div>', unsafe_allow_html=True)
+                                st.markdown(html_visual, unsafe_allow_html=True)
+                                st.button(" ", key=f"leg_btn_{col_name}", use_container_width=True, on_click=toggle_vis_paired, args=(col_name, paired_col))
+                        
+                        if selected_refs:
+                            st.markdown("<div style='margin-top: 30px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Lighting Overlays</div>", unsafe_allow_html=True)
+                            for ref_name in selected_refs:
+                                color = light_color_picks[ref_name]
+                                
+                                html_visual = f"""
+                                <div class="custom-leg-item" style="opacity: 1.0; cursor: default;">
+                                    <div class="leg-line-dash" style="border-color: {color};"></div>
+                                    <div class="leg-text">{ref_name}</div>
+                                </div>
+                                """
+                                st.markdown(html_visual, unsafe_allow_html=True)
                             
             else:
                 st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or active data columns.")
