@@ -46,11 +46,13 @@ def get_text_file(filename):
 def set_overlay_state(state):
     st.session_state.show_color_overlay = state
 
-# STATE SYNCHRONIZATION CALLBACKS
-def sync_vis(col_name, widget_key):
-    st.session_state.trace_vis[col_name] = st.session_state[widget_key]
+def toggle_vis(col_name):
+    """Reverses the boolean visibility state for a trace"""
+    current_state = st.session_state.trace_vis.get(col_name, True)
+    st.session_state.trace_vis[col_name] = not current_state
 
 def sync_color(item_name, widget_key):
+    """Saves the chosen color back to memory"""
     st.session_state.custom_colors[item_name] = st.session_state[widget_key]
 
 # Load Assets
@@ -249,14 +251,13 @@ elif st.session_state.app_state == 'graph':
                 with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
             # ==========================================
-            # FLOATING COLOR MENU OVERLAY (Synced)
+            # FLOATING COLOR MENU OVERLAY
             # ==========================================
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
-                        position: fixed !important;
-                        top: 80px !important; right: 40px !important; width: 320px !important; z-index: 9999999 !important; 
+                        position: fixed !important; top: 80px !important; right: 40px !important; width: 320px !important; z-index: 9999999 !important; 
                         background-color: color-mix(in srgb, var(--background-color) 50%, transparent) !important; 
                         backdrop-filter: blur(30px) !important; -webkit-backdrop-filter: blur(30px) !important;
                         border: 1px solid rgba(128, 128, 128, 0.2) !important; border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important;
@@ -266,8 +267,7 @@ elif st.session_state.app_state == 'graph':
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) > div.element-container:nth-child(1) { display: none !important; }
 
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
-                        position: fixed !important;
-                        top: 140px !important; right: 40px !important; width: 320px !important;
+                        position: fixed !important; top: 140px !important; right: 40px !important; width: 320px !important;
                         max-height: calc(100vh - 200px) !important; overflow-y: auto !important; z-index: 99999 !important; 
                         background-color: color-mix(in srgb, var(--secondary-background-color) 80%, transparent) !important;
                         backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important;
@@ -310,11 +310,8 @@ elif st.session_state.app_state == 'graph':
                             current_val = st.session_state.custom_colors.get(col_name, def_hex)
                             current_vis = st.session_state.trace_vis.get(col_name, True)
                             
-                            c1, c2 = st.columns([1, 6])
-                            with c1:
-                                st.checkbox("Vis", value=current_vis, key=f"vis_menu_{col_name}", on_change=sync_vis, args=(col_name, f"vis_menu_{col_name}"), label_visibility="collapsed")
-                            with c2:
-                                st.color_picker(col_name, value=current_val, key=f"cp_menu_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_menu_data_{col_name}"), disabled=not current_vis)
+                            # Just a clean picker! Disabled visually grays it out if unchecked in Side Legend
+                            st.color_picker(col_name, value=current_val, key=f"cp_menu_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_menu_data_{col_name}"), disabled=not current_vis)
                     else:
                         st.info("No active columns to color.")
                     
@@ -329,39 +326,40 @@ elif st.session_state.app_state == 'graph':
                             st.color_picker(ref_name, value=current_val, key=f"cp_menu_ref_{ref_name}", on_change=sync_color, args=(ref_name, f"cp_menu_ref_{ref_name}"), disabled=not is_active)
 
             # ==========================================
-            # RENDER GRAPH & CUSTOM SIDE LEGEND
+            # GRAPH & CUSTOM INVISIBLE-BUTTON LEGEND
             # ==========================================
             
-            # CSS for extreme compactness in the Side Legend
+            # CSS MAGIC: Stacks an invisible Streamlit button exactly over our custom HTML line/text
             st.markdown("""
                 <style>
-                /* Remove gaps and padding in the legend block */
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) {
-                    gap: 0rem !important;
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) {
+                    position: relative !important;
+                    height: 24px !important;
+                    margin-bottom: 2px !important;
+                    gap: 0 !important;
                 }
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="column"] {
-                    padding: 0 !important;
-                    margin: 0 !important;
+                /* Visual Graphic Layer */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) > div.element-container:nth-child(2) {
+                    position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 1; pointer-events: none;
                 }
-                /* Vertically center the checkbox */
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stCheckbox"] {
-                    display: flex; align-items: center; height: 32px;
+                /* Invisible Button Layer */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) > div.element-container:nth-child(3) {
+                    position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 2;
                 }
-                /* Format the color picker row tightly */
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stColorPicker"] {
-                    display: flex !important; flex-direction: row !important; align-items: center !important;
-                    gap: 8px !important; margin-bottom: 2px !important; width: 100% !important;
+                /* Destroy the button styling so it becomes a pure invisible hit-box */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) button {
+                    opacity: 0 !important; width: 100% !important; height: 100% !important;
+                    padding: 0 !important; cursor: pointer !important; border: none !important; background: transparent !important; box-shadow: none !important;
                 }
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stColorPicker"] > div {
-                    order: 1 !important; width: 28px !important; min-width: 28px !important; height: 28px !important; flex-shrink: 0 !important;
-                }
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stColorPicker"] > label {
-                    order: 2 !important; margin-bottom: 0px !important; padding-bottom: 0px !important;
-                    white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
-                }
-                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) label p {
-                    font-size: 0.85rem !important; font-weight: 400 !important; line-height: 1 !important;
-                }
+
+                .custom-leg-item { display: flex; align-items: center; height: 100%; transition: opacity 0.2s; }
+                .leg-line { width: 22px; height: 3px; border-radius: 2px; margin-right: 12px; flex-shrink: 0; }
+                .leg-line-dash { width: 22px; border-top: 3px dashed; margin-right: 12px; flex-shrink: 0; height: 0px; }
+                .leg-text { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'NeueHaas', sans-serif; }
+                
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor):hover .leg-text { opacity: 0.7; }
                 </style>
             """, unsafe_allow_html=True)
 
@@ -384,13 +382,12 @@ elif st.session_state.app_state == 'graph':
 
             if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
                 
-                # Split layout: Main Graph on left, Custom Legend on right
-                col_graph, col_leg = st.columns([5.5, 1.5])
+                # Maximized Graph Space (Ratio 7:1)
+                col_graph, col_leg = st.columns([7, 1])
                 
                 with col_graph:
                     fig = make_subplots(specs=[[{"secondary_y": True}]])
                     
-                    # --- DATA SERIES ---
                     for col_name in active_data_cols:
                         if not st.session_state.trace_vis.get(col_name, True):
                             continue
@@ -410,7 +407,6 @@ elif st.session_state.app_state == 'graph':
                             x=plot_x, y=plot_y, mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
                         ), secondary_y=False)
                     
-                    # --- LIGHTING OVERLAYS ---
                     if selected_refs and df_ref is not None:
                         for ref in selected_refs:
                             if truncate_lighting_bounds:
@@ -431,8 +427,8 @@ elif st.session_state.app_state == 'graph':
                         xaxis_title="Wavelength (nm)",
                         hovermode="x unified",
                         template="plotly_white",
-                        showlegend=False, # Plotly's native legend completely disabled
-                        margin=dict(l=40, r=0, t=80, b=40), # Pushed flush to the right column
+                        showlegend=False, 
+                        margin=dict(l=40, r=0, t=80, b=40), # Minimized right margin
                         uirevision=selected_color
                     )
                     
@@ -460,27 +456,41 @@ elif st.session_state.app_state == 'graph':
                     }
                     st.plotly_chart(fig, use_container_width=True, config=plot_config)
                 
-                # --- CUSTOM SIDE LEGEND UI ---
+                # --- PURE HTML COMPACT SIDE LEGEND ---
                 with col_leg:
-                    st.markdown('<div class="compact-legend-anchor"></div>', unsafe_allow_html=True)
-                    # Push it down so it aligns beautifully with the top gridline of the graph
-                    st.markdown("<div style='margin-top: 60px; margin-bottom: 10px; font-size: 0.9rem; opacity: 0.7;'><b>Data Series</b></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='margin-top: 60px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Data Series</div>", unsafe_allow_html=True)
                     
-                    for i, col_name in enumerate(active_data_cols):
-                        current_val = st.session_state.custom_colors.get(col_name, dynamic_data_colors[i])
-                        current_vis = st.session_state.trace_vis.get(col_name, True)
+                    for col_name in active_data_cols:
+                        vis = st.session_state.trace_vis.get(col_name, True)
+                        color = data_color_picks[col_name]
                         
-                        lc1, lc2 = st.columns([1, 6])
-                        with lc1:
-                            st.checkbox("V", value=current_vis, key=f"vis_leg_{col_name}", on_change=sync_vis, args=(col_name, f"vis_leg_{col_name}"), label_visibility="collapsed")
-                        with lc2:
-                            st.color_picker(col_name, value=current_val, key=f"cp_leg_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_leg_data_{col_name}"), disabled=not current_vis)
+                        item_opacity = "1.0" if vis else "0.4"
+                        
+                        html_visual = f"""
+                        <div class="custom-leg-item" style="opacity: {item_opacity};">
+                            <div class="leg-line" style="background-color: {color};"></div>
+                            <div class="leg-text">{col_name}</div>
+                        </div>
+                        """
+                        
+                        # The invisible overlap container
+                        with st.container():
+                            st.markdown('<div class="leg-anchor"></div>', unsafe_allow_html=True)
+                            st.markdown(html_visual, unsafe_allow_html=True)
+                            st.button(" ", key=f"leg_btn_{col_name}", on_click=toggle_vis, args=(col_name,))
                     
                     if selected_refs:
-                        st.markdown("<div style='margin-top: 20px; margin-bottom: 10px; font-size: 0.9rem; opacity: 0.7;'><b>Lighting Overlays</b></div>", unsafe_allow_html=True)
+                        st.markdown("<div style='margin-top: 30px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Lighting Overlays</div>", unsafe_allow_html=True)
                         for ref_name in selected_refs:
-                            current_val = st.session_state.custom_colors.get(ref_name, "#ffffff") # Handled by light_color_picks dict above natively
-                            st.color_picker(ref_name, value=current_val, key=f"cp_leg_ref_{ref_name}", on_change=sync_color, args=(ref_name, f"cp_leg_ref_{ref_name}"))
+                            color = light_color_picks[ref_name]
+                            
+                            html_visual = f"""
+                            <div class="custom-leg-item" style="opacity: 1.0; cursor: default;">
+                                <div class="leg-line-dash" style="border-color: {color};"></div>
+                                <div class="leg-text">{ref_name}</div>
+                            </div>
+                            """
+                            st.markdown(html_visual, unsafe_allow_html=True)
                             
             else:
                 st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or active data columns.")
