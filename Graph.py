@@ -218,9 +218,8 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
-                # DYNAMIC MENU BUTTON (Acts as a toggle)
-                menu_btn_text = "🎨 Close Color Menu" if st.session_state.show_color_overlay else "🎨 Open Color Menu"
-                st.button(menu_btn_text, use_container_width=True, on_click=set_overlay_state, args=(not st.session_state.show_color_overlay,))
+                # CLEAN TRIGGER BUTTON
+                st.button("🎨 Color Menu", use_container_width=True, on_click=set_overlay_state, args=(not st.session_state.show_color_overlay,))
                 
                 st.divider()
                 st.markdown("#### View Options")
@@ -257,7 +256,6 @@ elif st.session_state.app_state == 'graph':
                         width: 320px !important;
                         z-index: 9999999 !important; 
                         
-                        /* 50% opacity theme-aware background */
                         background-color: color-mix(in srgb, var(--background-color) 50%, transparent) !important; 
                         backdrop-filter: blur(30px) !important;
                         -webkit-backdrop-filter: blur(30px) !important;
@@ -269,7 +267,6 @@ elif st.session_state.app_state == 'graph':
                         box-shadow: 0px 5px 20px rgba(0,0,0,0.3) !important;
                     }
                     
-                    /* Hide invisible anchor gap */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) > div.element-container:nth-child(1) {
                         display: none !important;
                     }
@@ -277,12 +274,12 @@ elif st.session_state.app_state == 'graph':
                     /* 2. LAYER 2: THE MENU LAYER (Glassmorphic) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
                         position: fixed !important;
-                        top: 140px !important; /* Offset by the height of the button block */
+                        top: 140px !important; 
                         right: 40px !important;
                         width: 320px !important;
                         max-height: calc(100vh - 200px) !important; 
                         overflow-y: auto !important;
-                        z-index: 99999 !important; /* Lowered drastically so color pickers spawn on top */
+                        z-index: 99999 !important; 
                         
                         background-color: color-mix(in srgb, var(--secondary-background-color) 80%, transparent) !important;
                         backdrop-filter: blur(16px) !important;
@@ -294,9 +291,35 @@ elif st.session_state.app_state == 'graph':
                         box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
                     }
                     
-                    /* Hide invisible anchor gap */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) {
                         display: none !important;
+                    }
+
+                    /* 3. INLINE ROW FIX FOR COLOR PICKERS (Swatch Left, Name Right) */
+                    div[data-testid="stColorPicker"] {
+                        display: flex !important;
+                        flex-direction: row !important;
+                        align-items: center !important;
+                        gap: 12px !important;
+                        margin-bottom: 12px !important;
+                        width: 100% !important;
+                    }
+                    
+                    /* Move label to the right side */
+                    div[data-testid="stColorPicker"] > label {
+                        order: 2 !important;
+                        margin-bottom: 0px !important;
+                        padding-bottom: 0px !important;
+                        white-space: nowrap !important;
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                    }
+                    
+                    /* Keep swatch execution block compact on the left side */
+                    div[data-testid="stColorPicker"] > div {
+                        order: 1 !important;
+                        flex-shrink: 0 !important;
+                        width: 44px !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
@@ -304,7 +327,6 @@ elif st.session_state.app_state == 'graph':
                 # --- CONTAINER 1: THE BUTTON ---
                 with st.container():
                     st.markdown('<div class="floating-button-anchor"></div>', unsafe_allow_html=True)
-                    # TEXT REMOVED, JUST THE "✖" ICON
                     st.button("✖", use_container_width=True, on_click=set_overlay_state, args=(False,))
                 
                 # --- CONTAINER 2: THE COLOR MENU ---
@@ -316,7 +338,6 @@ elif st.session_state.app_state == 'graph':
                         dynamic_data_colors = []
                         for i in range(num_cols):
                             hue = i / num_cols
-                            # Desaturated to 60% for smoother, cleaner pastels/midtomes
                             r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
                             dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
 
