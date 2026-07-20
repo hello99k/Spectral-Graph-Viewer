@@ -46,13 +46,22 @@ def get_text_file(filename):
 def set_overlay_state(state):
     st.session_state.show_color_overlay = state
 
-def toggle_vis(col_name):
-    """Reverses the boolean visibility state for a trace"""
+def toggle_vis_paired(col_name, paired_col):
+    """Reverses visibility state for a trace AND its normalized/raw counterpart"""
     current_state = st.session_state.trace_vis.get(col_name, True)
-    st.session_state.trace_vis[col_name] = not current_state
+    new_state = not current_state
+    st.session_state.trace_vis[col_name] = new_state
+    if paired_col:
+        st.session_state.trace_vis[paired_col] = new_state
+
+def sync_vis_paired(col_name, paired_col, widget_key):
+    """Syncs checkbox state back to memory for a trace AND its counterpart"""
+    new_state = st.session_state[widget_key]
+    st.session_state.trace_vis[col_name] = new_state
+    if paired_col:
+        st.session_state.trace_vis[paired_col] = new_state
 
 def sync_color(item_name, widget_key):
-    """Saves the chosen color back to memory"""
     st.session_state.custom_colors[item_name] = st.session_state[widget_key]
 
 # Load Assets
@@ -210,6 +219,12 @@ elif st.session_state.app_state == 'graph':
             normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
             raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
             
+            # Create a pairing map so toggling a raw col also toggles its normalized version (and vice versa)
+            paired_map = {}
+            for i in range(min(len(raw_cols), len(normalized_cols))):
+                paired_map[raw_cols[i]] = normalized_cols[i]
+                paired_map[normalized_cols[i]] = raw_cols[i]
+            
             df_ref = None
             ref_options = []
             if ref_sheet_name:
@@ -276,6 +291,11 @@ elif st.session_state.app_state == 'graph':
                     }
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) { display: none !important; }
 
+                    /* Horizontally align checkboxes with color pickers inside the floating menu */
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) div[data-testid="stHorizontalBlock"] {
+                        align-items: center !important;
+                    }
+
                     div[data-testid="stColorPicker"] {
                         display: flex !important; flex-direction: row !important; align-items: center !important;
                         gap: 12px !important; margin-bottom: 12px !important; width: 100% !important;
@@ -309,9 +329,13 @@ elif st.session_state.app_state == 'graph':
                             def_hex = dynamic_data_colors[i]
                             current_val = st.session_state.custom_colors.get(col_name, def_hex)
                             current_vis = st.session_state.trace_vis.get(col_name, True)
+                            paired_col = paired_map.get(col_name)
                             
-                            # Just a clean picker! Disabled visually grays it out if unchecked in Side Legend
-                            st.color_picker(col_name, value=current_val, key=f"cp_menu_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_menu_data_{col_name}"), disabled=not current_vis)
+                            c1, c2 = st.columns([1, 6])
+                            with c1:
+                                st.checkbox("Vis", value=current_vis, key=f"vis_menu_{col_name}", on_change=sync_vis_paired, args=(col_name, paired_col, f"vis_menu_{col_name}"), label_visibility="collapsed")
+                            with c2:
+                                st.color_picker(col_name, value=current_val, key=f"cp_menu_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_menu_data_{col_name}"), disabled=not current_vis)
                     else:
                         st.info("No active columns to color.")
                     
@@ -329,7 +353,6 @@ elif st.session_state.app_state == 'graph':
             # GRAPH & CUSTOM INVISIBLE-BUTTON LEGEND
             # ==========================================
             
-            # CSS MAGIC: Stacks an invisible Streamlit button exactly over our custom HTML line/text
             st.markdown("""
                 <style>
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) {
@@ -348,7 +371,7 @@ elif st.session_state.app_state == 'graph':
                     position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
                     z-index: 2;
                 }
-                /* Destroy the button styling so it becomes a pure invisible hit-box */
+                /* Destroy the button styling so it acts as a fully invisible hit-box spanning the entire container */
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) button {
                     opacity: 0 !important; width: 100% !important; height: 100% !important;
                     padding: 0 !important; cursor: pointer !important; border: none !important; background: transparent !important; box-shadow: none !important;
@@ -382,7 +405,6 @@ elif st.session_state.app_state == 'graph':
 
             if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
                 
-                # Maximized Graph Space (Ratio 7:1)
                 col_graph, col_leg = st.columns([7, 1])
                 
                 with col_graph:
@@ -428,7 +450,7 @@ elif st.session_state.app_state == 'graph':
                         hovermode="x unified",
                         template="plotly_white",
                         showlegend=False, 
-                        margin=dict(l=40, r=0, t=80, b=40), # Minimized right margin
+                        margin=dict(l=40, r=0, t=80, b=40), 
                         uirevision=selected_color
                     )
                     
@@ -463,6 +485,7 @@ elif st.session_state.app_state == 'graph':
                     for col_name in active_data_cols:
                         vis = st.session_state.trace_vis.get(col_name, True)
                         color = data_color_picks[col_name]
+                        paired_col = paired_map.get(col_name)
                         
                         item_opacity = "1.0" if vis else "0.4"
                         
@@ -473,11 +496,11 @@ elif st.session_state.app_state == 'graph':
                         </div>
                         """
                         
-                        # The invisible overlap container
                         with st.container():
                             st.markdown('<div class="leg-anchor"></div>', unsafe_allow_html=True)
                             st.markdown(html_visual, unsafe_allow_html=True)
-                            st.button(" ", key=f"leg_btn_{col_name}", on_click=toggle_vis, args=(col_name,))
+                            # use_container_width=True forces the button to span the exact width of the text!
+                            st.button(" ", key=f"leg_btn_{col_name}", use_container_width=True, on_click=toggle_vis_paired, args=(col_name, paired_col))
                     
                     if selected_refs:
                         st.markdown("<div style='margin-top: 30px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Lighting Overlays</div>", unsafe_allow_html=True)
