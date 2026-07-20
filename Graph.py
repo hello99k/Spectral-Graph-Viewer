@@ -218,8 +218,9 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
-                # USING CALLBACK TO OPEN INSTEAD OF RERUN
-                st.button("🎨 Open Color Menu", use_container_width=True, on_click=set_overlay_state, args=(True,))
+                # DYNAMIC MENU BUTTON (Acts as a toggle)
+                menu_btn_text = "🎨 Close Color Menu" if st.session_state.show_color_overlay else "🎨 Open Color Menu"
+                st.button(menu_btn_text, use_container_width=True, on_click=set_overlay_state, args=(not st.session_state.show_color_overlay,))
                 
                 st.divider()
                 st.markdown("#### View Options")
@@ -303,8 +304,8 @@ elif st.session_state.app_state == 'graph':
                 # --- CONTAINER 1: THE BUTTON ---
                 with st.container():
                     st.markdown('<div class="floating-button-anchor"></div>', unsafe_allow_html=True)
-                    # USING CALLBACK TO CLOSE INSTEAD OF RERUN
-                    st.button("✖ Close Overlay", use_container_width=True, on_click=set_overlay_state, args=(False,))
+                    # TEXT REMOVED, JUST THE "✖" ICON
+                    st.button("✖", use_container_width=True, on_click=set_overlay_state, args=(False,))
                 
                 # --- CONTAINER 2: THE COLOR MENU ---
                 with st.container():
