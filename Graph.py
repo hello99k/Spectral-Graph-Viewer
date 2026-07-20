@@ -228,7 +228,6 @@ elif st.session_state.app_state == 'graph':
             normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
             raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
             
-            # Create a pairing map so toggling a raw col also toggles its normalized version (and vice versa)
             paired_map = {}
             for i in range(min(len(raw_cols), len(normalized_cols))):
                 paired_map[raw_cols[i]] = normalized_cols[i]
@@ -363,9 +362,9 @@ elif st.session_state.app_state == 'graph':
             
             st.markdown("""
                 <style>
-                /* Pulls the entire legend block leftward, closing the inner gutter with the graph */
+                /* Dialed back negative margin slightly to prevent clipping on the new wider graph */
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .legend-wrapper) {
-                    margin-left: -40px !important;
+                    margin-left: -20px !important;
                 }
 
                 div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) {
@@ -415,7 +414,8 @@ elif st.session_state.app_state == 'graph':
 
             if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
                 
-                col_graph, col_leg = st.columns([7, 1])
+                # Maximum Graph Width Push
+                col_graph, col_leg = st.columns([9, 1.2])
                 
                 with col_graph:
                     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -454,13 +454,15 @@ elif st.session_state.app_state == 'graph':
                                 line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
                             ), secondary_y=True)
                     
+                    # Locked in a taller native height to give the graph more presence
                     fig.update_layout(
                         title=f"Reflectance Data: {selected_color}",
                         xaxis_title="Wavelength (nm)",
                         hovermode="x unified",
                         template="plotly_white",
                         showlegend=False, 
-                        margin=dict(l=40, r=0, t=80, b=40), 
+                        margin=dict(l=40, r=0, t=80, b=40),
+                        height=650, 
                         uirevision=selected_color
                     )
                     
@@ -491,7 +493,6 @@ elif st.session_state.app_state == 'graph':
                 # --- PURE HTML COMPACT SIDE LEGEND ---
                 with col_leg:
                     with st.container():
-                        # Wrapper class specifically targets and shifts this entire column block leftward
                         st.markdown('<div class="legend-wrapper"></div>', unsafe_allow_html=True)
                         st.markdown("<div style='margin-top: 60px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Colors</div>", unsafe_allow_html=True)
                         
