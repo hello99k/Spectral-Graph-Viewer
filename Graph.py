@@ -23,6 +23,8 @@ if 'show_color_overlay' not in st.session_state:
     st.session_state.show_color_overlay = False
 if 'custom_colors' not in st.session_state:
     st.session_state.custom_colors = {}
+if 'trace_vis' not in st.session_state:
+    st.session_state.trace_vis = {}
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -218,7 +220,6 @@ elif st.session_state.app_state == 'graph':
             
             with st.expander("⚙️ Graph Settings"):
                 
-                # CLEAN TRIGGER BUTTON
                 st.button("🎨 Color Menu", use_container_width=True, on_click=set_overlay_state, args=(not st.session_state.show_color_overlay,))
                 
                 st.divider()
@@ -248,7 +249,7 @@ elif st.session_state.app_state == 'graph':
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* 1. LAYER 1: THE BUTTON LAYER (50% Opacity + Blur) */
+                    /* 1. LAYER 1: THE BUTTON LAYER */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
                         position: fixed !important;
                         top: 80px !important;
@@ -271,7 +272,7 @@ elif st.session_state.app_state == 'graph':
                         display: none !important;
                     }
 
-                    /* 2. LAYER 2: THE MENU LAYER (Glassmorphic) */
+                    /* 2. LAYER 2: THE MENU LAYER */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
                         position: fixed !important;
                         top: 140px !important; 
@@ -295,6 +296,11 @@ elif st.session_state.app_state == 'graph':
                         display: none !important;
                     }
 
+                    /* Align the new checkbox columns */
+                    div[data-testid="stHorizontalBlock"] {
+                        align-items: center !important;
+                    }
+
                     /* 3. INLINE ROW FIX FOR COLOR PICKERS (Swatch Left, Name Right) */
                     div[data-testid="stColorPicker"] {
                         display: flex !important;
@@ -305,7 +311,6 @@ elif st.session_state.app_state == 'graph':
                         width: 100% !important;
                     }
                     
-                    /* Move label to the right side */
                     div[data-testid="stColorPicker"] > label {
                         order: 2 !important;
                         margin-bottom: 0px !important;
@@ -315,7 +320,6 @@ elif st.session_state.app_state == 'graph':
                         text-overflow: ellipsis !important;
                     }
                     
-                    /* Keep swatch execution block compact on the left side */
                     div[data-testid="stColorPicker"] > div {
                         order: 1 !important;
                         flex-shrink: 0 !important;
@@ -344,8 +348,18 @@ elif st.session_state.app_state == 'graph':
                         for i, col_name in enumerate(active_data_cols):
                             def_hex = dynamic_data_colors[i]
                             current_val = st.session_state.custom_colors.get(col_name, def_hex)
-                            new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
-                            st.session_state.custom_colors[col_name] = new_val
+                            
+                            # Master Legend Checkbox
+                            current_vis = st.session_state.trace_vis.get(col_name, True)
+                            
+                            c1, c2 = st.columns([1, 6])
+                            with c1:
+                                new_vis = st.checkbox("Vis", value=current_vis, key=f"vis_{col_name}", label_visibility="collapsed")
+                                st.session_state.trace_vis[col_name] = new_vis
+                            with c2:
+                                # disabled=not new_vis applies the beautiful gray-out effect automatically!
+                                new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}", disabled=not new_vis)
+                                st.session_state.custom_colors[col_name] = new_val
                     else:
                         st.info("No active columns to color.")
                     
@@ -356,7 +370,11 @@ elif st.session_state.app_state == 'graph':
                         for i, ref_name in enumerate(ref_options):
                             def_hex = default_light_colors[i % len(default_light_colors)]
                             current_val = st.session_state.custom_colors.get(ref_name, def_hex)
-                            new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
+                            
+                            # Tie the gray-out state directly to the Graph Settings toggles
+                            is_active = ref_name in selected_refs
+                            
+                            new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}", disabled=not is_active)
                             st.session_state.custom_colors[ref_name] = new_val
 
             # ==========================================
@@ -386,6 +404,11 @@ elif st.session_state.app_state == 'graph':
                 
                 # --- DATA SERIES ---
                 for col_name in active_data_cols:
+                    
+                    # Read the Streamlit Checkbox state! If unchecked, skip plotting this trace.
+                    if not st.session_state.trace_vis.get(col_name, True):
+                        continue
+                        
                     if truncate_color_bounds:
                         mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
                         plot_x = df_color.loc[mask, 'WL (nm)']
