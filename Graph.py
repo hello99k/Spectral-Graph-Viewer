@@ -23,6 +23,8 @@ if 'show_color_overlay' not in st.session_state:
     st.session_state.show_color_overlay = False
 if 'custom_colors' not in st.session_state:
     st.session_state.custom_colors = {}
+if 'trace_vis' not in st.session_state:
+    st.session_state.trace_vis = {}
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -42,8 +44,14 @@ def get_text_file(filename):
     return ""
 
 def set_overlay_state(state):
-    """Callback to safely toggle the overlay without breaking execution flow."""
     st.session_state.show_color_overlay = state
+
+# STATE SYNCHRONIZATION CALLBACKS
+def sync_vis(col_name, widget_key):
+    st.session_state.trace_vis[col_name] = st.session_state[widget_key]
+
+def sync_color(item_name, widget_key):
+    st.session_state.custom_colors[item_name] = st.session_state[widget_key]
 
 # Load Assets
 font_medium_b64 = get_base64_of_bin_file("NeueHaasDisplayMediu.ttf") 
@@ -217,8 +225,6 @@ elif st.session_state.app_state == 'graph':
                             selected_refs.append(ref_name)
             
             with st.expander("⚙️ Graph Settings"):
-                
-                # CLEAN TRIGGER BUTTON
                 st.button("🎨 Color Menu", use_container_width=True, on_click=set_overlay_state, args=(not st.session_state.show_color_overlay,))
                 
                 st.divider()
@@ -243,93 +249,51 @@ elif st.session_state.app_state == 'graph':
                 with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
 
             # ==========================================
-            # TWO-LAYER FLOATING OVERLAY ARCHITECTURE
+            # FLOATING COLOR MENU OVERLAY (Synced)
             # ==========================================
             if st.session_state.show_color_overlay:
                 st.markdown("""
                     <style>
-                    /* 1. LAYER 1: THE BUTTON LAYER (50% Opacity + Blur) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
                         position: fixed !important;
-                        top: 80px !important;
-                        right: 40px !important;
-                        width: 320px !important;
-                        z-index: 9999999 !important; 
-                        
+                        top: 80px !important; right: 40px !important; width: 320px !important; z-index: 9999999 !important; 
                         background-color: color-mix(in srgb, var(--background-color) 50%, transparent) !important; 
-                        backdrop-filter: blur(30px) !important;
-                        -webkit-backdrop-filter: blur(30px) !important;
-                        
-                        border: 1px solid rgba(128, 128, 128, 0.2) !important;
-                        border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important;
-                        border-radius: 12px 12px 0px 0px !important; 
-                        padding: 15px 20px 15px 20px !important;
+                        backdrop-filter: blur(30px) !important; -webkit-backdrop-filter: blur(30px) !important;
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important; border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important;
+                        border-radius: 12px 12px 0px 0px !important; padding: 15px 20px 15px 20px !important;
                         box-shadow: 0px 5px 20px rgba(0,0,0,0.3) !important;
                     }
-                    
-                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) > div.element-container:nth-child(1) {
-                        display: none !important;
-                    }
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) > div.element-container:nth-child(1) { display: none !important; }
 
-                    /* 2. LAYER 2: THE MENU LAYER (Glassmorphic) */
                     div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
                         position: fixed !important;
-                        top: 140px !important; 
-                        right: 40px !important;
-                        width: 320px !important;
-                        max-height: calc(100vh - 200px) !important; 
-                        overflow-y: auto !important;
-                        z-index: 99999 !important; 
-                        
+                        top: 140px !important; right: 40px !important; width: 320px !important;
+                        max-height: calc(100vh - 200px) !important; overflow-y: auto !important; z-index: 99999 !important; 
                         background-color: color-mix(in srgb, var(--secondary-background-color) 80%, transparent) !important;
-                        backdrop-filter: blur(16px) !important;
-                        -webkit-backdrop-filter: blur(16px) !important;
-                        
-                        border: 1px solid rgba(128, 128, 128, 0.2) !important;
-                        border-radius: 0px 0px 12px 12px !important;
-                        padding: 20px !important; 
-                        box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
+                        backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important;
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important; border-radius: 0px 0px 12px 12px !important;
+                        padding: 20px !important; box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
                     }
-                    
-                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) {
-                        display: none !important;
-                    }
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) { display: none !important; }
 
-                    /* 3. INLINE ROW FIX FOR COLOR PICKERS (Swatch Left, Name Right) */
                     div[data-testid="stColorPicker"] {
-                        display: flex !important;
-                        flex-direction: row !important;
-                        align-items: center !important;
-                        gap: 12px !important;
-                        margin-bottom: 12px !important;
-                        width: 100% !important;
+                        display: flex !important; flex-direction: row !important; align-items: center !important;
+                        gap: 12px !important; margin-bottom: 12px !important; width: 100% !important;
                     }
-                    
-                    /* Move label to the right side */
                     div[data-testid="stColorPicker"] > label {
-                        order: 2 !important;
-                        margin-bottom: 0px !important;
-                        padding-bottom: 0px !important;
-                        white-space: nowrap !important;
-                        overflow: hidden !important;
-                        text-overflow: ellipsis !important;
+                        order: 2 !important; margin-bottom: 0px !important; padding-bottom: 0px !important;
+                        white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
                     }
-                    
-                    /* Keep swatch execution block compact on the left side */
                     div[data-testid="stColorPicker"] > div {
-                        order: 1 !important;
-                        flex-shrink: 0 !important;
-                        width: 44px !important;
+                        order: 1 !important; flex-shrink: 0 !important; width: 44px !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
                 
-                # --- CONTAINER 1: THE BUTTON ---
                 with st.container():
                     st.markdown('<div class="floating-button-anchor"></div>', unsafe_allow_html=True)
                     st.button("✖", use_container_width=True, on_click=set_overlay_state, args=(False,))
                 
-                # --- CONTAINER 2: THE COLOR MENU ---
                 with st.container():
                     st.markdown('<div class="floating-menu-anchor"></div>', unsafe_allow_html=True)
                     st.markdown("### 📊")
@@ -344,8 +308,13 @@ elif st.session_state.app_state == 'graph':
                         for i, col_name in enumerate(active_data_cols):
                             def_hex = dynamic_data_colors[i]
                             current_val = st.session_state.custom_colors.get(col_name, def_hex)
-                            new_val = st.color_picker(col_name, value=current_val, key=f"cp_data_{col_name}")
-                            st.session_state.custom_colors[col_name] = new_val
+                            current_vis = st.session_state.trace_vis.get(col_name, True)
+                            
+                            c1, c2 = st.columns([1, 6])
+                            with c1:
+                                st.checkbox("Vis", value=current_vis, key=f"vis_menu_{col_name}", on_change=sync_vis, args=(col_name, f"vis_menu_{col_name}"), label_visibility="collapsed")
+                            with c2:
+                                st.color_picker(col_name, value=current_val, key=f"cp_menu_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_menu_data_{col_name}"), disabled=not current_vis)
                     else:
                         st.info("No active columns to color.")
                     
@@ -356,12 +325,46 @@ elif st.session_state.app_state == 'graph':
                         for i, ref_name in enumerate(ref_options):
                             def_hex = default_light_colors[i % len(default_light_colors)]
                             current_val = st.session_state.custom_colors.get(ref_name, def_hex)
-                            new_val = st.color_picker(ref_name, value=current_val, key=f"cp_ref_{ref_name}")
-                            st.session_state.custom_colors[ref_name] = new_val
+                            is_active = ref_name in selected_refs
+                            st.color_picker(ref_name, value=current_val, key=f"cp_menu_ref_{ref_name}", on_change=sync_color, args=(ref_name, f"cp_menu_ref_{ref_name}"), disabled=not is_active)
 
             # ==========================================
-            # RENDER GRAPH
+            # RENDER GRAPH & CUSTOM SIDE LEGEND
             # ==========================================
+            
+            # CSS for extreme compactness in the Side Legend
+            st.markdown("""
+                <style>
+                /* Remove gaps and padding in the legend block */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) {
+                    gap: 0rem !important;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="column"] {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                /* Vertically center the checkbox */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stCheckbox"] {
+                    display: flex; align-items: center; height: 32px;
+                }
+                /* Format the color picker row tightly */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stColorPicker"] {
+                    display: flex !important; flex-direction: row !important; align-items: center !important;
+                    gap: 8px !important; margin-bottom: 2px !important; width: 100% !important;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stColorPicker"] > div {
+                    order: 1 !important; width: 28px !important; min-width: 28px !important; height: 28px !important; flex-shrink: 0 !important;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) div[data-testid="stColorPicker"] > label {
+                    order: 2 !important; margin-bottom: 0px !important; padding-bottom: 0px !important;
+                    white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .compact-legend-anchor) label p {
+                    font-size: 0.85rem !important; font-weight: 400 !important; line-height: 1 !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
             data_color_picks = {}
             if active_data_cols:
                 num_cols = len(active_data_cols)
@@ -370,7 +373,6 @@ elif st.session_state.app_state == 'graph':
                     hue = i / num_cols
                     r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
                     dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
-
                 for i, col_name in enumerate(active_data_cols):
                     data_color_picks[col_name] = st.session_state.custom_colors.get(col_name, dynamic_data_colors[i])
                 
@@ -380,77 +382,106 @@ elif st.session_state.app_state == 'graph':
                 for i, ref_name in enumerate(ref_options):
                     light_color_picks[ref_name] = st.session_state.custom_colors.get(ref_name, default_light_colors[i % len(default_light_colors)])
 
-
             if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
-                fig = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # --- DATA SERIES ---
-                for col_name in active_data_cols:
-                    if truncate_color_bounds:
-                        mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
-                        plot_x = df_color.loc[mask, 'WL (nm)']
-                        plot_y = df_color.loc[mask, col_name]
-                    else:
-                        plot_x = df_color['WL (nm)']
-                        plot_y = df_color[col_name]
+                # Split layout: Main Graph on left, Custom Legend on right
+                col_graph, col_leg = st.columns([5.5, 1.5])
+                
+                with col_graph:
+                    fig = make_subplots(specs=[[{"secondary_y": True}]])
                     
-                    if not plot_normalized:
-                        plot_y = plot_y / 100.0
-                        
-                    fig.add_trace(go.Scatter(
-                        x=plot_x, y=plot_y, mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
-                    ), secondary_y=False)
-                
-                # --- LIGHTING OVERLAYS ---
-                if selected_refs and df_ref is not None:
-                    for ref in selected_refs:
-                        if truncate_lighting_bounds:
-                            ref_mask = (df_ref[ref_x_col] >= 400) & (df_ref[ref_x_col] <= 700)
-                            plot_x_ref = df_ref.loc[ref_mask, ref_x_col]
-                            plot_y_ref = df_ref.loc[ref_mask, ref]
+                    # --- DATA SERIES ---
+                    for col_name in active_data_cols:
+                        if not st.session_state.trace_vis.get(col_name, True):
+                            continue
+                            
+                        if truncate_color_bounds:
+                            mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
+                            plot_x = df_color.loc[mask, 'WL (nm)']
+                            plot_y = df_color.loc[mask, col_name]
                         else:
-                            plot_x_ref = df_ref[ref_x_col]
-                            plot_y_ref = df_ref[ref]
+                            plot_x = df_color['WL (nm)']
+                            plot_y = df_color[col_name]
+                        
+                        if not plot_normalized:
+                            plot_y = plot_y / 100.0
                             
                         fig.add_trace(go.Scatter(
-                            x=plot_x_ref, y=plot_y_ref, mode='lines', name=f"💡 {ref}",
-                            line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
-                        ), secondary_y=True)
-                
-                fig.update_layout(
-                    title=f"Reflectance Data: {selected_color}",
-                    xaxis_title="Wavelength (nm)",
-                    hovermode="x unified",
-                    template="plotly_white",
-                    legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
-                    margin=dict(l=40, r=40, t=80, b=40),
-                    uirevision=selected_color
-                )
-                
-                if truncate_color_bounds or truncate_lighting_bounds:
-                    x_min = df_color['WL (nm)'].min()
-                    x_max = df_color['WL (nm)'].max()
-                    fig.update_xaxes(range=[x_min, x_max])
-                
-                left_y_title = "Relative Reflectance" if plot_normalized else "% Reflectance"
-                fig.update_yaxes(title_text=left_y_title, secondary_y=False)
-                
-                if not auto_scale_y:
-                    fig.update_yaxes(range=[0, 1], secondary_y=False)
+                            x=plot_x, y=plot_y, mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
+                        ), secondary_y=False)
                     
-                fig.update_yaxes(title_text="Relative Transmittance", secondary_y=True, showgrid=False)
-                
-                plot_config = {
-                    'toImageButtonOptions': {
-                        'format': 'png',
-                        'filename': f"{selected_color}_Reflectance_Graph",
-                        'height': export_height,
-                        'width': export_width,
-                        'scale': export_scale
+                    # --- LIGHTING OVERLAYS ---
+                    if selected_refs and df_ref is not None:
+                        for ref in selected_refs:
+                            if truncate_lighting_bounds:
+                                ref_mask = (df_ref[ref_x_col] >= 400) & (df_ref[ref_x_col] <= 700)
+                                plot_x_ref = df_ref.loc[ref_mask, ref_x_col]
+                                plot_y_ref = df_ref.loc[ref_mask, ref]
+                            else:
+                                plot_x_ref = df_ref[ref_x_col]
+                                plot_y_ref = df_ref[ref]
+                                
+                            fig.add_trace(go.Scatter(
+                                x=plot_x_ref, y=plot_y_ref, mode='lines', name=f"💡 {ref}",
+                                line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
+                            ), secondary_y=True)
+                    
+                    fig.update_layout(
+                        title=f"Reflectance Data: {selected_color}",
+                        xaxis_title="Wavelength (nm)",
+                        hovermode="x unified",
+                        template="plotly_white",
+                        showlegend=False, # Plotly's native legend completely disabled
+                        margin=dict(l=40, r=0, t=80, b=40), # Pushed flush to the right column
+                        uirevision=selected_color
+                    )
+                    
+                    if truncate_color_bounds or truncate_lighting_bounds:
+                        x_min = df_color['WL (nm)'].min()
+                        x_max = df_color['WL (nm)'].max()
+                        fig.update_xaxes(range=[x_min, x_max])
+                    
+                    left_y_title = "Relative Reflectance" if plot_normalized else "% Reflectance"
+                    fig.update_yaxes(title_text=left_y_title, secondary_y=False)
+                    
+                    if not auto_scale_y:
+                        fig.update_yaxes(range=[0, 1], secondary_y=False)
+                        
+                    fig.update_yaxes(title_text="Relative Transmittance", secondary_y=True, showgrid=False)
+                    
+                    plot_config = {
+                        'toImageButtonOptions': {
+                            'format': 'png',
+                            'filename': f"{selected_color}_Reflectance_Graph",
+                            'height': export_height,
+                            'width': export_width,
+                            'scale': export_scale
+                        }
                     }
-                }
-                st.plotly_chart(fig, use_container_width=True, config=plot_config)
+                    st.plotly_chart(fig, use_container_width=True, config=plot_config)
                 
+                # --- CUSTOM SIDE LEGEND UI ---
+                with col_leg:
+                    st.markdown('<div class="compact-legend-anchor"></div>', unsafe_allow_html=True)
+                    # Push it down so it aligns beautifully with the top gridline of the graph
+                    st.markdown("<div style='margin-top: 60px; margin-bottom: 10px; font-size: 0.9rem; opacity: 0.7;'><b>Data Series</b></div>", unsafe_allow_html=True)
+                    
+                    for i, col_name in enumerate(active_data_cols):
+                        current_val = st.session_state.custom_colors.get(col_name, dynamic_data_colors[i])
+                        current_vis = st.session_state.trace_vis.get(col_name, True)
+                        
+                        lc1, lc2 = st.columns([1, 6])
+                        with lc1:
+                            st.checkbox("V", value=current_vis, key=f"vis_leg_{col_name}", on_change=sync_vis, args=(col_name, f"vis_leg_{col_name}"), label_visibility="collapsed")
+                        with lc2:
+                            st.color_picker(col_name, value=current_val, key=f"cp_leg_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_leg_data_{col_name}"), disabled=not current_vis)
+                    
+                    if selected_refs:
+                        st.markdown("<div style='margin-top: 20px; margin-bottom: 10px; font-size: 0.9rem; opacity: 0.7;'><b>Lighting Overlays</b></div>", unsafe_allow_html=True)
+                        for ref_name in selected_refs:
+                            current_val = st.session_state.custom_colors.get(ref_name, "#ffffff") # Handled by light_color_picks dict above natively
+                            st.color_picker(ref_name, value=current_val, key=f"cp_leg_ref_{ref_name}", on_change=sync_color, args=(ref_name, f"cp_leg_ref_{ref_name}"))
+                            
             else:
                 st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or active data columns.")
 
