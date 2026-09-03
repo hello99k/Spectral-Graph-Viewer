@@ -1,434 +1,535 @@
 import streamlit as st
-import cv2
-import pytesseract
 import pandas as pd
-import numpy as np
-import re
-import io
-import zipfile
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import base64
 import os
+import io
+import colorsys
 
-# --- Session State Management ---
-if "batches" not in st.session_state:
-    st.session_state.batches = []
-if "uploader_key" not in st.session_state:
-    st.session_state.uploader_key = 0
-if "batch_counter" not in st.session_state:
-    st.session_state.batch_counter = 1
-if "is_processed" not in st.session_state:
-    st.session_state.is_processed = False
-if "excel_data" not in st.session_state:
-    st.session_state.excel_data = None
+# ==========================================
+# 1. INITIAL SETUP & MEMORY
+# ==========================================
+st.set_page_config(page_title="Color Metamerism Viewer", layout="wide", initial_sidebar_state="collapsed")
 
-def reset_processing_state():
-    """Clears the generated Excel file if the queue is modified."""
-    st.session_state.is_processed = False
-    st.session_state.excel_data = None
-
-def handle_upload():
-    """Callback to process files immediately when uploaded and queue them."""
-    upload_key = f"uploader_{st.session_state.uploader_key}"
-    uploaded_files = st.session_state.get(upload_key)
+if 'app_state' not in st.session_state:
+    st.session_state.app_state = 'splash'
+if 'file_bytes' not in st.session_state:
+    st.session_state.file_bytes = None
+if 'upload_key' not in st.session_state:
+    st.session_state.upload_key = 0
     
-    if not uploaded_files:
-        return
-        
-    current_batch = []
-    for f in uploaded_files:
-        if f.name.lower().endswith('.zip'):
-            try:
-                with zipfile.ZipFile(f, 'r') as zip_ref:
-                    for zip_info in zip_ref.infolist():
-                        if zip_info.is_dir() or zip_info.filename.startswith('__MACOSX') or os.path.basename(zip_info.filename).startswith('.'):
-                            continue
-                        if zip_info.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                            current_batch.append({
-                                'name': os.path.basename(zip_info.filename),
-                                'bytes': zip_ref.read(zip_info.filename)
-                            })
-            except Exception as e:
-                st.error(f"Failed to read ZIP file {f.name}: {e}")
-        else:
-            current_batch.append({
-                'name': f.name,
-                'bytes': f.getvalue()
-            })
-    
-    if current_batch:
-        st.session_state.batches.append({
-            'batch_id': st.session_state.batch_counter,
-            'files': current_batch
-        })
-        st.session_state.batch_counter += 1
-        reset_processing_state()
-        
-    st.session_state.uploader_key += 1
+if 'show_color_overlay' not in st.session_state:
+    st.session_state.show_color_overlay = False
+if 'custom_colors' not in st.session_state:
+    st.session_state.custom_colors = {}
+if 'trace_vis' not in st.session_state:
+    st.session_state.trace_vis = {}
 
-def undo_last_upload():
-    if st.session_state.batches:
-        st.session_state.batches.pop()
-        if not st.session_state.batches:
-            st.session_state.batch_counter = 1
-        reset_processing_state()
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def clear_all_uploads():
-    st.session_state.batches.clear()
-    st.session_state.batch_counter = 1
-    reset_processing_state()
+def get_base64_of_bin_file(filename):
+    filepath = os.path.join(SCRIPT_DIR, filename)
+    if os.path.exists(filepath):
+        with open(filepath, 'rb') as f:
+            return base64.b64encode(f.read()).decode()
+    return None
 
-def extract_data_from_image(image_bytes, start_wl, end_wl, interval):
-    """Decodes image, validates it is a spectra screenshot, and extracts the table."""
-    file_bytes = np.asarray(bytearray(image_bytes), dtype=np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    
-    if img is None:
-        return pd.DataFrame(), False
+def get_text_file(filename):
+    filepath = os.path.join(SCRIPT_DIR, filename)
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            svg_content = f.read()
+            return svg_content.replace('<svg ', '<svg style="width: 100%; height: auto;" ')
+    return ""
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    height, width = gray.shape
-    left_panel = gray[:, :int(width * 0.10)] 
-    
-    left_panel = cv2.resize(left_panel, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    _, left_panel = cv2.threshold(left_panel, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+def set_overlay_state(state):
+    st.session_state.show_color_overlay = state
 
-    custom_config = r'--oem 3 --psm 6'
-    text = pytesseract.image_to_string(left_panel, config=custom_config)
-    
-    if 'WL' not in text.upper() or '%' not in text:
-        return pd.DataFrame(), False
-    
-    expected_wls = list(range(start_wl, end_wl + 1, interval))
-    data_dict = {wl: None for wl in expected_wls}
-    
-    for line in text.split('\n'):
-        match = re.search(r'(\d{3,4})\s*[^\d]*(\d+[\.,]\d+|\d+)', line.strip())
-        if match:
-            wl = int(match.group(1))
-            raw_val = match.group(2).replace(',', '.')
-            val = float(raw_val)
-            
-            if val > 100:
-                val = val / 100
-                
-            if wl in data_dict:
-                data_dict[wl] = val
-                
-    df = pd.DataFrame([{'WL (nm)': k, 'Value': v} for k, v in data_dict.items() if v is not None])
-    return df, True
+def toggle_vis_paired(col_name, paired_col):
+    """Reverses visibility state for a trace AND its normalized/raw counterpart"""
+    current_state = st.session_state.trace_vis.get(col_name, True)
+    new_state = not current_state
+    st.session_state.trace_vis[col_name] = new_state
+    if paired_col:
+        st.session_state.trace_vis[paired_col] = new_state
 
+def sync_vis_paired(col_name, paired_col, widget_key):
+    """Syncs checkbox state back to memory for a trace AND its counterpart"""
+    new_state = st.session_state[widget_key]
+    st.session_state.trace_vis[col_name] = new_state
+    if paired_col:
+        st.session_state.trace_vis[paired_col] = new_state
 
-# --- Streamlit UI ---
+def sync_color(item_name, widget_key):
+    st.session_state.custom_colors[item_name] = st.session_state[widget_key]
 
-st.set_page_config(page_title="Spectra Batch Extractor", layout="wide")
+# Load Assets
+font_medium_b64 = get_base64_of_bin_file("NeueHaasDisplayMediu.ttf") 
+bg_b64 = get_base64_of_bin_file("Background python app.jpg")
+icon_files = ["Calculator Icon.txt", "Bulb Icon.txt", "Coms Icon.txt", "Graph1 Icon.txt", "Graph2 Icon.txt", "Graph3 Icon.txt"]
 
-st.markdown("""
+# ==========================================
+# 2. GLOBAL FONT LOADER & ICON SHIELD
+# ==========================================
+if font_medium_b64:
+    st.markdown(f"""
     <style>
-    /* --- 1. Uploader Pixel-Perfect Centering & Styling --- */
-    [data-testid="stFileUploader"] label {
-        display: none !important;
-    }
-    
-    [data-testid="stFileUploaderDropzone"] {
-        height: 216px !important; 
-        min-height: 216px !important; 
-        padding: 0 !important;
-    }
-    
-    [data-testid="stFileUploaderDropzone"] > div {
-        height: 100% !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-    
-    /* Hide the original button entirely */
-    [data-testid="stFileUploaderDropzone"] button,
-    [data-testid="stFileUploaderDropzone"] svg,
-    [data-testid="stFileUploaderDropzone"] > div > span {
-        display: none !important;
-    }
+    @font-face {{
+        font-family: 'NeueHaas';
+        src: url(data:font/truetype;base64,{font_medium_b64}) format('truetype');
+        font-weight: normal;
+        font-style: normal;
+    }}
 
-    /* Inject 'Upload' as bold text with emoji directly in the center */
-    [data-testid="stFileUploaderDropzone"] > div::before {
-        content: "📤 Upload";
-        font-weight: 600;
-        font-size: 1.25rem;
-        margin-bottom: 8px;
-        color: var(--text-color);
-    }
+    html, body, p, span, div, h1, h2, h3, h4, h5, h6,
+    .stApp, .stButton, .stSelectbox, .stMarkdown, 
+    .stExpander, .stSlider, .stTextInput, .stMultiSelect,
+    .stMetric, .stRadio, .stMarkdown h1, .stMarkdown h2, 
+    .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {{
+        font-family: 'NeueHaas', sans-serif !important;
+        font-weight: normal !important;
+    }}
 
-    [data-testid="stFileUploaderDropzone"] small {
-        margin: 0 !important;
-        text-align: center !important;
-    }
-
-    /* --- 2. Undo/Clear Buttons Alignment --- */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) div[data-testid="stButton"] button {
-        height: 100px !important; 
-        min-height: 100px !important; 
-        justify-content: flex-start !important; 
-        padding-left: 24px !important; 
-        width: 100% !important;
-        margin: 0 !important;
-    }
-
-    /* --- 3. Custom Raw HTML Horizontal Scroll Classes --- */
-    .custom-scroll-container {
-        display: flex;
-        overflow-x: auto;
-        gap: 16px;
-        padding: 10px 0 20px 0;
-        align-items: flex-start;
-        scrollbar-width: thin;
-    }
-    
-    .custom-scroll-container::-webkit-scrollbar {
-        height: 8px;
-    }
-    
-    .custom-scroll-container::-webkit-scrollbar-track {
-        background: rgba(128,128,128,0.1);
-        border-radius: 4px;
-    }
-    
-    .custom-scroll-container::-webkit-scrollbar-thumb {
-        background: rgba(128,128,128,0.4);
-        border-radius: 4px;
-    }
-
-    .custom-card {
-        flex: 0 0 160px; /* Forces cards to stay strictly 160px wide */
-        background-color: rgba(128, 128, 128, 0.08);
-        border-radius: 8px;
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .custom-details {
-        width: 100%;
-    }
-
-    .custom-summary {
-        list-style: none;
-        background-color: rgba(128,128,128,0.15);
-        padding: 8px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        text-align: center;
-        margin-top: 8px;
-        border: 1px solid rgba(128,128,128,0.2);
-        transition: background-color 0.2s;
-    }
-
-    .custom-summary:hover {
-        background-color: rgba(128,128,128,0.25);
-    }
-    
-    .custom-summary::-webkit-details-marker {
-        display: none; /* Hides default triangle */
-    }
-
-    .custom-dropdown {
-        background-color: var(--background-color);
-        border: 1px solid rgba(128,128,128,0.2);
-        border-radius: 6px;
-        padding: 12px;
-        margin-top: 8px;
-        text-align: left;
-        font-size: 13px;
-        width: 100%;
-        box-sizing: border-box;
-    }
+    .material-symbols-rounded, 
+    .material-symbols-outlined, 
+    .material-icons, 
+    [data-testid="stIconMaterial"] {{
+        font-family: "Material Symbols Rounded", "Material Icons" !important;
+    }}
     </style>
-""", unsafe_allow_html=True)
-
-st.title("Spectra Batch Extractor")
-st.write("""
-**Instructions:** Drag and drop **folders, images, or .zip files** into the uploader below. The box will immediately capture the files and clear itself so you can upload more.
-""")
-
-with st.expander("⚙️ Optical Text Search Parameters (Advanced)"):
-    st.write("Adjust the expected wavelength range and interval if it differs from the defaults.")
-    w_col1, w_col2, w_col3 = st.columns(3)
-    with w_col1:
-        start_wl = st.number_input("Start WL (nm)", value=360, step=10)
-    with w_col2:
-        end_wl = st.number_input("End WL (nm)", value=750, step=10)
-    with w_col3:
-        interval_wl = st.number_input("Interval (nm)", value=10, step=5)
-
-# --- Upload & Queue Management Row ---
-col_upload, col_buttons = st.columns([3, 1])
-
-with col_upload:
-    st.file_uploader(
-        "Upload Screenshots (Images, Folders, or ZIP files)", 
-        type=["png", "jpg", "jpeg", "zip"], 
-        accept_multiple_files=True,
-        key=f"uploader_{st.session_state.uploader_key}",
-        on_change=handle_upload,
-        label_visibility="collapsed"
-    )
-
-with col_buttons:
-    st.button("↩️ Undo Last Upload", on_click=undo_last_upload, use_container_width=True)
-    st.button("🗑️ Clear All", on_click=clear_all_uploads, use_container_width=True)
+    """, unsafe_allow_html=True)
 
 
-# --- Permanent Queued Colors Section ---
-st.write("---")
-st.subheader("🎨 Queued Colors")
-
-ui_groups = {}
-total_files = 0
-
-if st.session_state.batches:
-    for batch in st.session_state.batches:
-        b_id = batch['batch_id']
-        all_files_in_instance = [f['name'] for f in batch['files']]
-        total_files += len(batch['files'])
-        
-        for f in batch['files']:
-            name = f['name']
-            name_without_ext = name.rsplit('.', 1)[0]
-            parts = name_without_ext.split(' ', 1)
-            
-            if len(parts) >= 2:
-                color = parts[0].strip()
-                if color not in ui_groups:
-                    ui_groups[color] = {'relevant': set(), 'instances': {}}
-                
-                ui_groups[color]['relevant'].add(name)
-                
-                if b_id not in ui_groups[color]['instances']:
-                    ui_groups[color]['instances'][b_id] = all_files_in_instance
-
-    # Render Custom HTML via Python string interpolation
-    if ui_groups:
-        html_string = '<div class="custom-scroll-container">'
-        
-        for color, data in ui_groups.items():
-            # Build the bullet list of relevant files
-            relevant_files_list = "".join(
-                [f"<li style='margin-bottom:4px;'><code>{rf}</code></li>" for rf in sorted(data['relevant'])]
-            )
-            
-            # Build the text showing upload instances
-            instances_html = ""
-            for b_id, all_files in data['instances'].items():
-                instances_html += f"<div style='font-size: 12px; color: gray; margin-top: 6px;'><b>Instance {b_id}:</b> {', '.join(all_files)}</div>"
-
-            # Construct the card body using an interactive <details> dropdown tag
-            html_string += f"""
-            <div class="custom-card">
-                <div style="font-weight: 600; font-size: 16px;">{color}</div>
-                <details class="custom-details">
-                    <summary class="custom-summary">{len(data['relevant'])} materials ⌄</summary>
-                    <div class="custom-dropdown">
-                        <div style="font-weight:600; margin-bottom:8px;">Relevant '{color}' Files:</div>
-                        <ul style="padding-left: 16px; margin: 0 0 12px 0;">
-                            {relevant_files_list}
-                        </ul>
-                        <div style="border-top: 1px solid rgba(128,128,128,0.2); margin: 8px 0;"></div>
-                        <div style="font-size: 12px; font-weight:600;">📦 Full Instance Upload History:</div>
-                        {instances_html}
-                    </div>
-                </details>
-            </div>
-            """
-            
-        html_string += '</div>'
-        
-        # Inject our handcrafted component perfectly outside Streamlit's internal layout boundaries
-        st.markdown(html_string, unsafe_allow_html=True)
-    else:
-        st.info("Files uploaded, but none match the required 'Color Material' naming format.")
-else:
-    st.info("The queue is currently empty. Upload files to begin.")
-
-
-# --- Processing Execution & Download ---
-if st.session_state.batches:
-    st.write("---")
-    st.write(f"📁 **Total Queue Size:** {total_files} files queued across {len(st.session_state.batches)} upload event(s).")
+# ==========================================
+# 3. PAGE 1: THE SPLASH SCREEN
+# ==========================================
+if st.session_state.app_state == 'splash':
     
-    if st.button("🚀 Process Batch Queue", use_container_width=True):
-        with st.spinner("Processing queue and extracting data..."):
-            color_groups = {}
-            processed_count = 0
-            skipped_count = 0
-            
-            all_files = [file for batch in st.session_state.batches for file in batch['files']]
-            progress_bar = st.progress(0)
-            
-            for index, file_data in enumerate(all_files):
-                filename = file_data['name']
-                name_without_ext = filename.rsplit('.', 1)[0]
-                parts = name_without_ext.split(' ', 1)
-                
-                if len(parts) < 2:
-                    skipped_count += 1
-                    continue
-                    
-                color = parts[0].strip()
-                material = parts[1].strip()
-                col_name = 'Band' if material.lower() == 'band' else f'Housing ({material})'
-                
-                df, is_valid = extract_data_from_image(file_data['bytes'], start_wl, end_wl, interval_wl)
-                
-                if not is_valid or df.empty:
-                    skipped_count += 1
-                    continue
-                    
-                df = df.rename(columns={'Value': col_name})
-                
-                if color not in color_groups:
-                    color_groups[color] = []
-                color_groups[color].append(df)
-                
-                processed_count += 1
-                progress_bar.progress((index + 1) / len(all_files))
-            
-            progress_bar.empty()
-            
-            if not color_groups:
-                st.error("No valid spectra data could be extracted from the queue.")
-            else:
-                st.success(f"Successfully extracted data from {processed_count} files. Ignored {skipped_count} irrelevant files.")
-                
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    for color, dfs in color_groups.items():
-                        merged_df = dfs[0]
-                        for df in dfs[1:]:
-                            merged_df = pd.merge(merged_df, df, on='WL (nm)', how='outer')
-                            
-                        merged_df = merged_df.sort_values('WL (nm)').reset_index(drop=True)
-                        merged_df.to_excel(writer, sheet_name=color, index=False)
-                
-                st.session_state.excel_data = output.getvalue()
-                st.session_state.is_processed = True
+    if bg_b64:
+        bg_css = f"background-image: url(data:image/jpeg;base64,{bg_b64});background-size: cover; background-position: center 41%;"
+    else:
+        bg_css = "background-color: #1a1a1a;"
 
-    # Reveal filename input and download button AFTER processing is complete
-    if st.session_state.is_processed and st.session_state.excel_data:
-        st.write("---")
-        default_filename = ", ".join(ui_groups.keys())
+    st.markdown(f"""
+        <style>
+        header, [data-testid="stHeader"] {{ display: none !important; }}
+        [data-testid="stToolbar"] {{ display: none !important; }}
+        .splash-container .block-container {{ padding: 0 !important; max-width: 100% !important; }}
         
-        user_filename = st.text_input("📝 Enter a name for your compiled Excel file:", value=default_filename)
+        .splash-container {{
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            {bg_css}
+            z-index: 1; text-align: center; pointer-events: none !important; 
+        }}
         
-        final_filename = user_filename.strip()
-        if not final_filename.endswith(".xlsx"):
-            final_filename += ".xlsx"
+        .title-wrapper {{ position: relative; display: inline-flex; align-items: center; justify-content: center; margin-top: 30px; margin-bottom: 5px; }}
+        .splash-container .icon-wrapper {{ position: absolute; width: 147px; left: 995px; top: -0px; margin-top: 0px; }}
+        .splash-container .icon-item {{ position: absolute; width: 100%; opacity: 0; animation: cycle 4.2s infinite; }}
+        
+        .splash-container .icon-item:nth-child(4) {{ animation-delay: 0.7s; }}
+        .splash-container .icon-item:nth-child(1) {{ animation-delay: 1.4s; }}
+        .splash-container .icon-item:nth-child(6) {{ animation-delay: 2.1s; }}
+        .splash-container .icon-item:nth-child(3) {{ animation-delay: 2.8s; }}
+        .splash-container .icon-item:nth-child(5) {{ animation-delay: 3.5s; }}
+        .splash-container .icon-item:nth-child(2) {{ animation-delay: 4.2s; }}
+
+        @keyframes cycle {{
+            0%, 16.66% {{ opacity: 1; }}
+            16.67%, 100% {{ opacity: 0; }}
+        }}
+
+        h1.splash-title, .stMarkdown h1.splash-title {{
+            font-size: 7.5rem !important; color: #FFFFFF; margin: 0; 
+            font-family: 'NeueHaas', sans-serif !important; font-weight: normal !important; 
+            letter-spacing: 0px; white-space: pre-wrap;
+        }}
+        
+        .splash-container .splash-subtitle {{
+            font-size: 1rem; color: #FFFFFF; margin-top: -180px !important; margin-bottom: 450px; font-weight: 300; opacity: 0.70;
+        }}
+
+        div:has(> [data-testid="stFileUploader"]) {{
+            position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+            z-index: 99999 !important; opacity: 0.001 !important; 
+        }}
+        [data-testid="stFileUploader"], [data-testid="stFileUploadDropzone"] {{
+            position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
+            z-index: 99999 !important; border: none !important; padding: 0 !important; margin: 0 !important;
+        }}
+        [data-testid="stFileUploader"] label {{ display: none !important; }}
+        [data-testid="stFileUploader"] * {{ cursor: pointer !important; width: 100% !important; height: 100% !important; }}
+        </style>
+    """, unsafe_allow_html=True)
+
+    icons_html = "".join([f'<div class="icon-item">{get_text_file(f)}</div>' for f in icon_files])
+    
+    st.markdown(f"""
+    <div class="splash-container">
+        <p class="splash-subtitle">Click anywhere or drag an Excel file to begin</p>
+        <div class="title-wrapper">
+            <div class="icon-wrapper">{icons_html}</div>
+            <h1 class="splash-title">see your color with         .</h1>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    uploaded_file = st.file_uploader("Upload", type=['xlsx', 'xls'], key=f"splash_uploader_{st.session_state.upload_key}")
+    
+    if uploaded_file is not None:
+        st.session_state.file_bytes = uploaded_file.getvalue()
+        st.session_state.app_state = 'graph'
+        st.rerun()
+
+
+# ==========================================
+# 4. PAGE 2: THE GRAPHING INTERFACE
+# ==========================================
+elif st.session_state.app_state == 'graph':
+    
+    # Adjusted block-container padding to shrink the outer right gutter
+    st.markdown("""
+        <style>
+        .block-container { 
+            padding-top: 3rem !important; 
+            padding-left: 2rem !important; 
+            padding-right: 1.5rem !important; 
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col_back, col_space = st.columns([1, 5])
+    with col_back:
+        if st.button("⬅️ Back to Upload"):
+            st.session_state.app_state = 'splash'
+            st.session_state.file_bytes = None
+            st.session_state.upload_key += 1 
+            st.rerun()
+
+    st.markdown("""
+        <div style="font-family: 'NeueHaas', sans-serif !important; font-weight: normal !important; font-size: 2.5rem; padding-bottom: 15px; -webkit-font-smoothing: antialiased;">
+            Color Reflectance Data Viewer
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
+
+    try:
+        xls = pd.ExcelFile(io.BytesIO(st.session_state.file_bytes))
+        ref_sheet_name = next((sheet for sheet in xls.sheet_names if "reference lighting" in sheet.lower()), None)
+        color_sheets = [sheet for sheet in xls.sheet_names if "reference lighting" not in sheet.lower()]
+        
+        if not color_sheets:
+            st.error("No valid color tabs found in the uploaded file.")
+        else:
+            selected_color = st.selectbox("Color Name:", color_sheets)
+            df_color = pd.read_excel(xls, sheet_name=selected_color)
             
-        st.download_button(
-            label="📥 Download Compiled Excel File",
-            data=st.session_state.excel_data,
-            file_name=final_filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
+            normalized_cols = [col for col in df_color.columns if "normalized" in str(col).lower()]
+            raw_cols = [col for col in df_color.columns if "normalized" not in str(col).lower() and "WL (nm)" not in str(col)]
+            
+            paired_map = {}
+            for i in range(min(len(raw_cols), len(normalized_cols))):
+                paired_map[raw_cols[i]] = normalized_cols[i]
+                paired_map[normalized_cols[i]] = raw_cols[i]
+            
+            df_ref = None
+            ref_options = []
+            if ref_sheet_name:
+                df_ref = pd.read_excel(xls, sheet_name=ref_sheet_name)
+                ref_x_col = df_ref.columns[0]
+                ref_options = df_ref.columns[1:].tolist()
+
+            selected_refs = []
+            if ref_options:
+                st.markdown("### Reference Lighting Overlays")
+                cols = st.columns(len(ref_options))
+                for i, ref_name in enumerate(ref_options):
+                    with cols[i]:
+                        if st.toggle(ref_name):
+                            selected_refs.append(ref_name)
+            
+            with st.expander("⚙️ Graph Settings"):
+                st.button("🎨 Color Menu", use_container_width=True, on_click=set_overlay_state, args=(not st.session_state.show_color_overlay,))
+                
+                st.divider()
+                st.markdown("#### View Options")
+                
+                auto_scale_y = st.toggle("Auto Scale Y-axis", value=False)
+                has_normalized = len(normalized_cols) > 0
+                plot_normalized = st.toggle("Plot Normalized Values", value=False, disabled=not has_normalized)
+                
+                truncate_color_bounds = st.toggle("Truncate Color Wavelength Bounds (400nm - 700nm)", value=True)
+                truncate_lighting_bounds = st.toggle("Truncate Lighting Wavelength Bounds (400nm - 700nm)", value=False)
+                
+                st.divider()
+                
+                active_data_cols = normalized_cols if plot_normalized else raw_cols
+                
+                st.markdown("#### High-Resolution Image Export")
+                st.markdown("*Adjust these dimensions, then hover over the graph and click the **Camera Icon** to download.*")
+                img_col1, img_col2, img_col3 = st.columns(3)
+                with img_col1: export_width = st.number_input("Width (px)", min_value=500, value=1920, step=100)
+                with img_col2: export_height = st.number_input("Height (px)", min_value=300, value=1080, step=100)
+                with img_col3: export_scale = st.number_input("Resolution Scale", min_value=1.0, value=2.0, step=0.5)
+
+            # ==========================================
+            # FLOATING COLOR MENU OVERLAY
+            # ==========================================
+            if st.session_state.show_color_overlay:
+                st.markdown("""
+                    <style>
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) {
+                        position: fixed !important; top: 80px !important; right: 40px !important; width: 320px !important; z-index: 9999999 !important; 
+                        background-color: color-mix(in srgb, var(--background-color) 50%, transparent) !important; 
+                        backdrop-filter: blur(30px) !important; -webkit-backdrop-filter: blur(30px) !important;
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important; border-bottom: 1px solid rgba(128, 128, 128, 0.3) !important;
+                        border-radius: 12px 12px 0px 0px !important; padding: 15px 20px 15px 20px !important;
+                        box-shadow: 0px 5px 20px rgba(0,0,0,0.3) !important;
+                    }
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-button-anchor) > div.element-container:nth-child(1) { display: none !important; }
+
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) {
+                        position: fixed !important; top: 140px !important; right: 40px !important; width: 320px !important;
+                        max-height: calc(100vh - 200px) !important; overflow-y: auto !important; z-index: 99999 !important; 
+                        background-color: color-mix(in srgb, var(--secondary-background-color) 80%, transparent) !important;
+                        backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important;
+                        border: 1px solid rgba(128, 128, 128, 0.2) !important; border-radius: 0px 0px 12px 12px !important;
+                        padding: 20px !important; box-shadow: 0px 10px 40px rgba(0,0,0,0.5) !important;
+                    }
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) > div.element-container:nth-child(1) { display: none !important; }
+
+                    div[data-testid="stVerticalBlock"]:has(> div.element-container .floating-menu-anchor) div[data-testid="stHorizontalBlock"] {
+                        align-items: center !important;
+                    }
+
+                    div[data-testid="stColorPicker"] {
+                        display: flex !important; flex-direction: row !important; align-items: center !important;
+                        gap: 12px !important; margin-bottom: 12px !important; width: 100% !important;
+                    }
+                    div[data-testid="stColorPicker"] > label {
+                        order: 2 !important; margin-bottom: 0px !important; padding-bottom: 0px !important;
+                        white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+                    }
+                    div[data-testid="stColorPicker"] > div {
+                        order: 1 !important; flex-shrink: 0 !important; width: 44px !important;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                with st.container():
+                    st.markdown('<div class="floating-button-anchor"></div>', unsafe_allow_html=True)
+                    st.button("✖", use_container_width=True, on_click=set_overlay_state, args=(False,))
+                
+                with st.container():
+                    st.markdown('<div class="floating-menu-anchor"></div>', unsafe_allow_html=True)
+                    st.markdown("### 📊")
+                    if active_data_cols:
+                        num_cols = len(active_data_cols)
+                        dynamic_data_colors = []
+                        for i in range(num_cols):
+                            hue = i / num_cols
+                            r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
+                            dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
+
+                        for i, col_name in enumerate(active_data_cols):
+                            def_hex = dynamic_data_colors[i]
+                            current_val = st.session_state.custom_colors.get(col_name, def_hex)
+                            current_vis = st.session_state.trace_vis.get(col_name, True)
+                            paired_col = paired_map.get(col_name)
+                            
+                            c1, c2 = st.columns([1, 6])
+                            with c1:
+                                st.checkbox("Vis", value=current_vis, key=f"vis_menu_{col_name}", on_change=sync_vis_paired, args=(col_name, paired_col, f"vis_menu_{col_name}"), label_visibility="collapsed")
+                            with c2:
+                                st.color_picker(col_name, value=current_val, key=f"cp_menu_data_{col_name}", on_change=sync_color, args=(col_name, f"cp_menu_data_{col_name}"), disabled=not current_vis)
+                    else:
+                        st.info("No active columns to color.")
+                    
+                    st.divider()
+                    st.markdown("### 💡")
+                    default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
+                    if ref_options:
+                        for i, ref_name in enumerate(ref_options):
+                            def_hex = default_light_colors[i % len(default_light_colors)]
+                            current_val = st.session_state.custom_colors.get(ref_name, def_hex)
+                            is_active = ref_name in selected_refs
+                            st.color_picker(ref_name, value=current_val, key=f"cp_menu_ref_{ref_name}", on_change=sync_color, args=(ref_name, f"cp_menu_ref_{ref_name}"), disabled=not is_active)
+
+            # ==========================================
+            # GRAPH & CUSTOM INVISIBLE-BUTTON LEGEND
+            # ==========================================
+            
+            st.markdown("""
+                <style>
+                /* Dialed back negative margin slightly to prevent clipping on the new wider graph */
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .legend-wrapper) {
+                    margin-left: -20px !important;
+                }
+
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) {
+                    position: relative !important;
+                    height: 24px !important;
+                    margin-bottom: 2px !important;
+                    gap: 0 !important;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) > div.element-container:nth-child(2) {
+                    position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 1; pointer-events: none;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) > div.element-container:nth-child(3) {
+                    position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
+                    z-index: 2;
+                }
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor) button {
+                    opacity: 0 !important; width: 100% !important; height: 100% !important;
+                    padding: 0 !important; cursor: pointer !important; border: none !important; background: transparent !important; box-shadow: none !important;
+                }
+
+                .custom-leg-item { display: flex; align-items: center; height: 100%; transition: opacity 0.2s; }
+                .leg-line { width: 22px; height: 3px; border-radius: 2px; margin-right: 12px; flex-shrink: 0; }
+                .leg-line-dash { width: 22px; border-top: 3px dashed; margin-right: 12px; flex-shrink: 0; height: 0px; }
+                .leg-text { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'NeueHaas', sans-serif; }
+                
+                div[data-testid="stVerticalBlock"]:has(> div.element-container .leg-anchor):hover .leg-text { opacity: 0.7; }
+                </style>
+            """, unsafe_allow_html=True)
+
+            data_color_picks = {}
+            if active_data_cols:
+                num_cols = len(active_data_cols)
+                dynamic_data_colors = []
+                for i in range(num_cols):
+                    hue = i / num_cols
+                    r, g, b = colorsys.hls_to_rgb(hue, 0.6, 0.6)
+                    dynamic_data_colors.append("#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255)))
+                for i, col_name in enumerate(active_data_cols):
+                    data_color_picks[col_name] = st.session_state.custom_colors.get(col_name, dynamic_data_colors[i])
+                
+            light_color_picks = {}
+            default_light_colors = ['#2ca02c', '#d62728', '#9467bd', '#8c564b']
+            if ref_options:
+                for i, ref_name in enumerate(ref_options):
+                    light_color_picks[ref_name] = st.session_state.custom_colors.get(ref_name, default_light_colors[i % len(default_light_colors)])
+
+            if 'WL (nm)' in df_color.columns and len(active_data_cols) > 0:
+                
+                # Maximum Graph Width Push
+                col_graph, col_leg = st.columns([9, 1.2])
+                
+                with col_graph:
+                    fig = make_subplots(specs=[[{"secondary_y": True}]])
+                    
+                    for col_name in active_data_cols:
+                        if not st.session_state.trace_vis.get(col_name, True):
+                            continue
+                            
+                        if truncate_color_bounds:
+                            mask = (df_color['WL (nm)'] >= 400) & (df_color['WL (nm)'] <= 700)
+                            plot_x = df_color.loc[mask, 'WL (nm)']
+                            plot_y = df_color.loc[mask, col_name]
+                        else:
+                            plot_x = df_color['WL (nm)']
+                            plot_y = df_color[col_name]
+                        
+                        if not plot_normalized:
+                            plot_y = plot_y / 100.0
+                            
+                        fig.add_trace(go.Scatter(
+                            x=plot_x, y=plot_y, mode='lines', name=col_name, line=dict(width=2, color=data_color_picks[col_name])
+                        ), secondary_y=False)
+                    
+                    if selected_refs and df_ref is not None:
+                        for ref in selected_refs:
+                            if truncate_lighting_bounds:
+                                ref_mask = (df_ref[ref_x_col] >= 400) & (df_ref[ref_x_col] <= 700)
+                                plot_x_ref = df_ref.loc[ref_mask, ref_x_col]
+                                plot_y_ref = df_ref.loc[ref_mask, ref]
+                            else:
+                                plot_x_ref = df_ref[ref_x_col]
+                                plot_y_ref = df_ref[ref]
+                                
+                            fig.add_trace(go.Scatter(
+                                x=plot_x_ref, y=plot_y_ref, mode='lines', name=f"💡 {ref}",
+                                line=dict(width=2, dash='dash', color=light_color_picks[ref]), hoverinfo='x+y+name'
+                            ), secondary_y=True)
+                    
+                    # Locked in a taller native height to give the graph more presence
+                    fig.update_layout(
+                        title=f"Reflectance Data: {selected_color}",
+                        xaxis_title="Wavelength (nm)",
+                        hovermode="x unified",
+                        template="plotly_white",
+                        showlegend=False, 
+                        margin=dict(l=40, r=0, t=80, b=40),
+                        height=650, 
+                        uirevision=selected_color
+                    )
+                    
+                    if truncate_color_bounds or truncate_lighting_bounds:
+                        x_min = df_color['WL (nm)'].min()
+                        x_max = df_color['WL (nm)'].max()
+                        fig.update_xaxes(range=[x_min, x_max])
+                    
+                    left_y_title = "Relative Reflectance" if plot_normalized else "% Reflectance"
+                    fig.update_yaxes(title_text=left_y_title, secondary_y=False)
+                    
+                    if not auto_scale_y:
+                        fig.update_yaxes(range=[0, 1], secondary_y=False)
+                        
+                    fig.update_yaxes(title_text="Relative Transmittance", secondary_y=True, showgrid=False)
+                    
+                    plot_config = {
+                        'toImageButtonOptions': {
+                            'format': 'png',
+                            'filename': f"{selected_color}_Reflectance_Graph",
+                            'height': export_height,
+                            'width': export_width,
+                            'scale': export_scale
+                        }
+                    }
+                    st.plotly_chart(fig, use_container_width=True, config=plot_config)
+                
+                # --- PURE HTML COMPACT SIDE LEGEND ---
+                with col_leg:
+                    with st.container():
+                        st.markdown('<div class="legend-wrapper"></div>', unsafe_allow_html=True)
+                        st.markdown("<div style='margin-top: 60px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Colors</div>", unsafe_allow_html=True)
+                        
+                        for col_name in active_data_cols:
+                            vis = st.session_state.trace_vis.get(col_name, True)
+                            color = data_color_picks[col_name]
+                            paired_col = paired_map.get(col_name)
+                            
+                            item_opacity = "1.0" if vis else "0.4"
+                            
+                            html_visual = f"""
+                            <div class="custom-leg-item" style="opacity: {item_opacity};">
+                                <div class="leg-line" style="background-color: {color};"></div>
+                                <div class="leg-text">{col_name}</div>
+                            </div>
+                            """
+                            
+                            with st.container():
+                                st.markdown('<div class="leg-anchor"></div>', unsafe_allow_html=True)
+                                st.markdown(html_visual, unsafe_allow_html=True)
+                                st.button(" ", key=f"leg_btn_{col_name}", use_container_width=True, on_click=toggle_vis_paired, args=(col_name, paired_col))
+                        
+                        if selected_refs:
+                            st.markdown("<div style='margin-top: 30px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; opacity: 0.8;'>Lighting Overlays</div>", unsafe_allow_html=True)
+                            for ref_name in selected_refs:
+                                color = light_color_picks[ref_name]
+                                
+                                html_visual = f"""
+                                <div class="custom-leg-item" style="opacity: 1.0; cursor: default;">
+                                    <div class="leg-line-dash" style="border-color: {color};"></div>
+                                    <div class="leg-text">{ref_name}</div>
+                                </div>
+                                """
+                                st.markdown(html_visual, unsafe_allow_html=True)
+                            
+            else:
+                st.error(f"The tab '{selected_color}' is missing 'WL (nm)' or active data columns.")
+
+    except Exception as e:
+        st.error(f"An error occurred while reading the file: {e}")
