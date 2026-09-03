@@ -124,23 +124,7 @@ st.set_page_config(page_title="Spectra Batch Extractor", layout="wide")
 
 st.markdown("""
     <style>
-    /* --- 1. Scoped Card Styling for Queued Colors --- */
-    /* Target only the columns row immediately following our anchor */
-    .color-cards-row + div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        background-color: rgba(128, 128, 128, 0.08) !important;
-        padding: 12px !important;
-        border-radius: 8px !important;
-        text-align: center !important;
-        min-width: 150px !important; /* Forces cards to stay wide, triggering native horizontal scroll */
-    }
-
-    /* Make the popover buttons fill the card width */
-    .color-cards-row + div[data-testid="stHorizontalBlock"] [data-testid="stPopover"],
-    .color-cards-row + div[data-testid="stHorizontalBlock"] [data-testid="stPopover"] button {
-        width: 100% !important;
-    }
-
-    /* --- 2. Uploader Centering with Emoji --- */
+    /* --- 1. Uploader Pixel-Perfect Centering & Styling --- */
     [data-testid="stFileUploader"] label {
         display: none !important;
     }
@@ -172,6 +156,7 @@ st.markdown("""
         font-weight: 600;
         font-size: 1.25rem;
         margin-bottom: 8px;
+        color: var(--text-color);
     }
 
     [data-testid="stFileUploaderDropzone"] small {
@@ -179,7 +164,7 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* --- 3. Undo/Clear Buttons Alignment --- */
+    /* --- 2. Undo/Clear Buttons Alignment --- */
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) div[data-testid="stButton"] button {
         height: 100px !important; 
         min-height: 100px !important; 
@@ -187,6 +172,77 @@ st.markdown("""
         padding-left: 24px !important; 
         width: 100% !important;
         margin: 0 !important;
+    }
+
+    /* --- 3. Custom Raw HTML Horizontal Scroll Classes --- */
+    .custom-scroll-container {
+        display: flex;
+        overflow-x: auto;
+        gap: 16px;
+        padding: 10px 0 20px 0;
+        align-items: flex-start;
+        scrollbar-width: thin;
+    }
+    
+    .custom-scroll-container::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    .custom-scroll-container::-webkit-scrollbar-track {
+        background: rgba(128,128,128,0.1);
+        border-radius: 4px;
+    }
+    
+    .custom-scroll-container::-webkit-scrollbar-thumb {
+        background: rgba(128,128,128,0.4);
+        border-radius: 4px;
+    }
+
+    .custom-card {
+        flex: 0 0 160px; /* Forces cards to stay strictly 160px wide */
+        background-color: rgba(128, 128, 128, 0.08);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .custom-details {
+        width: 100%;
+    }
+
+    .custom-summary {
+        list-style: none;
+        background-color: rgba(128,128,128,0.15);
+        padding: 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        text-align: center;
+        margin-top: 8px;
+        border: 1px solid rgba(128,128,128,0.2);
+        transition: background-color 0.2s;
+    }
+
+    .custom-summary:hover {
+        background-color: rgba(128,128,128,0.25);
+    }
+    
+    .custom-summary::-webkit-details-marker {
+        display: none; /* Hides default triangle */
+    }
+
+    .custom-dropdown {
+        background-color: var(--background-color);
+        border: 1px solid rgba(128,128,128,0.2);
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 8px;
+        text-align: left;
+        font-size: 13px;
+        width: 100%;
+        box-sizing: border-box;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -252,25 +308,44 @@ if st.session_state.batches:
                 if b_id not in ui_groups[color]['instances']:
                     ui_groups[color]['instances'][b_id] = all_files_in_instance
 
-    # Invisible anchor to apply the CSS styling ONLY to this specific row of columns
-    st.markdown('<div class="color-cards-row"></div>', unsafe_allow_html=True)
-    
+    # Render Custom HTML via Python string interpolation
     if ui_groups:
-        # NEW IN STREAMLIT: wrap=False creates a native horizontal scrollbar automatically!
-        cols = st.columns(len(ui_groups), wrap=False)
-        for idx, (color, data) in enumerate(ui_groups.items()):
-            with cols[idx]:
-                st.markdown(f"**{color}**")
-                
-                with st.popover(f"{len(data['relevant'])} materials"):
-                    st.write(f"**Relevant '{color}' Files:**")
-                    for rf in sorted(data['relevant']):
-                        st.write(f"- `{rf}`")
-                    
-                    st.divider()
-                    st.caption("📦 **Full Instance Upload History:**")
-                    for b_id, all_files in data['instances'].items():
-                        st.caption(f"**Instance {b_id}:** {', '.join(all_files)}")
+        html_string = '<div class="custom-scroll-container">'
+        
+        for color, data in ui_groups.items():
+            # Build the bullet list of relevant files
+            relevant_files_list = "".join(
+                [f"<li style='margin-bottom:4px;'><code>{rf}</code></li>" for rf in sorted(data['relevant'])]
+            )
+            
+            # Build the text showing upload instances
+            instances_html = ""
+            for b_id, all_files in data['instances'].items():
+                instances_html += f"<div style='font-size: 12px; color: gray; margin-top: 6px;'><b>Instance {b_id}:</b> {', '.join(all_files)}</div>"
+
+            # Construct the card body using an interactive <details> dropdown tag
+            html_string += f"""
+            <div class="custom-card">
+                <div style="font-weight: 600; font-size: 16px;">{color}</div>
+                <details class="custom-details">
+                    <summary class="custom-summary">{len(data['relevant'])} materials ⌄</summary>
+                    <div class="custom-dropdown">
+                        <div style="font-weight:600; margin-bottom:8px;">Relevant '{color}' Files:</div>
+                        <ul style="padding-left: 16px; margin: 0 0 12px 0;">
+                            {relevant_files_list}
+                        </ul>
+                        <div style="border-top: 1px solid rgba(128,128,128,0.2); margin: 8px 0;"></div>
+                        <div style="font-size: 12px; font-weight:600;">📦 Full Instance Upload History:</div>
+                        {instances_html}
+                    </div>
+                </details>
+            </div>
+            """
+            
+        html_string += '</div>'
+        
+        # Inject our handcrafted component perfectly outside Streamlit's internal layout boundaries
+        st.markdown(html_string, unsafe_allow_html=True)
     else:
         st.info("Files uploaded, but none match the required 'Color Material' naming format.")
 else:
